@@ -1,8 +1,8 @@
 import 'package:csias_desktop/features/tistory_posting/domain/models/upload_file_item.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/widgets/drop_zone.dart';
+import 'package:csias_desktop/features/tistory_posting/presentation/widgets/file_list_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
 
 import 'package:csias_desktop/core/widgets/app_card.dart';
 import 'package:csias_desktop/core/widgets/app_button.dart';
@@ -17,161 +17,142 @@ class TistoryPostingPage extends ConsumerWidget {
     final state = ref.watch(tistoryPostingProvider);
     final controller = ref.read(tistoryPostingProvider.notifier);
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        /* ================= Left: Account ================= */
-        SizedBox(
-          width: 260,
-          child: AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("계정", style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: AppSpacing.s12),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
 
-                DropdownButton<String>(
-                  isExpanded: true,
-                  value: state.selectedAccountId,
-                  hint: const Text("계정 선택"),
-                  items: state.accounts
-                      .map(
-                        (a) => DropdownMenuItem(
-                          value: a.id,
-                          child: Text(a.displayName),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: controller.selectAccountId,
-                ),
-              ],
-            ),
-          ),
-        ),
+        final leftW = (w * 0.18).clamp(260.0, 360.0);
+        final rightW = (w * 0.24).clamp(360.0, 520.0);
 
-        const SizedBox(width: AppSpacing.s16),
-
-        /* ================= Middle: Files & Tags ================= */
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return AppCard(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "파일 & 태그",
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: AppSpacing.s12),
-
-                      DropZone(onFilesDropped: controller.addFilesFromPaths),
-                      const SizedBox(height: AppSpacing.s12),
-
-                      OutlinedButton.icon(
-                        icon: const Icon(Icons.folder_open),
-                        label: const Text("파일 선택"),
-                        onPressed: () async {
-                          final result = await FilePicker.platform.pickFiles(
-                            allowMultiple: true,
-                            type: FileType.custom,
-                            allowedExtensions: ['html', 'htm'],
-                          );
-                          if (result == null) return;
-
-                          controller.addFilesFromPaths(
-                            result.files
-                                .where((f) => f.path != null)
-                                .map((f) => f.path!)
-                                .toList(),
-                          );
-                        },
-                      ),
-
-                      const SizedBox(height: AppSpacing.s12),
-
-                      // ✅ 여기서부터 스크롤 영역
-                      Expanded(
-                        child: ListView.builder(
-                          itemCount: state.files.length,
-                          itemBuilder: (context, index) {
-                            final f = state.files[index];
-                            return ListTile(
-                              dense: true,
-                              leading: _statusIcon(f.status),
-                              title: Text(f.name),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.close),
-                                onPressed: f.status == UploadStatus.running
-                                    ? null
-                                    : () => controller.removeFile(f.path),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-
-        const SizedBox(width: AppSpacing.s16),
-
-        /* ================= Right: Run & Logs ================= */
-        SizedBox(
-          width: 360,
-          child: AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("실행", style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: AppSpacing.s12),
-
-                Row(
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            /* ================= Left: Account ================= */
+            SizedBox(
+              width: leftW,
+              child: AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    FilledButton(
-                      style: AppButton.primary(context),
-                      onPressed: state.isRunning ? null : controller.start,
-                      child: const Text("포스팅 시작"),
-                    ),
-                    const SizedBox(width: 8),
-                    OutlinedButton(
-                      style: AppButton.ghost(context),
-                      onPressed: state.isRunning
-                          ? null
-                          : controller.retryFailed,
-                      child: const Text("실패만 재시도"),
+                    Text("계정", style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: AppSpacing.s12),
+
+                    DropdownButton<String>(
+                      isExpanded: true,
+                      value: state.selectedAccountId,
+                      hint: const Text("계정 선택"),
+                      items: state.accounts
+                          .map(
+                            (a) => DropdownMenuItem(
+                              value: a.id,
+                              child: Text(a.displayName),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: controller.selectAccountId,
                     ),
                   ],
                 ),
-
-                const Divider(height: 24),
-
-                Text("로그", style: Theme.of(context).textTheme.bodyMedium),
-                const SizedBox(height: AppSpacing.s8),
-
-                Expanded(
-                  child: ListView(
-                    children: state.logs
-                        .map(
-                          (l) => Text(
-                            l,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-        ),
-      ],
+
+            const SizedBox(width: AppSpacing.s16),
+
+            /* ================= Middle: Files & Tags ================= */
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return AppCard(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "파일 & 태그",
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: AppSpacing.s12),
+
+                          DropZone(
+                            onFilesSelected: controller.addFilesFromPaths,
+                            fileCount: state.files.length,
+                          ),
+                          const SizedBox(height: AppSpacing.s12),
+
+                          const SizedBox(height: AppSpacing.s12),
+
+                          // ✅ 여기서부터 스크롤 영역
+                          Expanded(
+                            child: FileListPanel(
+                              statusIconBuilder: (status) =>
+                                  _statusIcon(status),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(width: AppSpacing.s16),
+
+            /* ================= Right: Run & Logs ================= */
+            SizedBox(
+              width: rightW,
+              child: AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("실행", style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: AppSpacing.s12),
+
+                    Row(
+                      children: [
+                        FilledButton(
+                          style: AppButton.primary(context),
+                          onPressed: state.isRunning ? null : controller.start,
+                          child: const Text("포스팅 시작"),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton(
+                          style: AppButton.ghost(context),
+                          onPressed: state.isRunning
+                              ? null
+                              : controller.retryFailed,
+                          child: const Text("실패만 재시도"),
+                        ),
+                      ],
+                    ),
+
+                    const Divider(height: 24),
+
+                    Text("로그", style: Theme.of(context).textTheme.bodyMedium),
+                    const SizedBox(height: AppSpacing.s8),
+
+                    Expanded(
+                      child: ListView(
+                        children: state.logs
+                            .map(
+                              (l) => Text(
+                                l,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

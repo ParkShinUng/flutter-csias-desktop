@@ -93,6 +93,7 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
           path: path,
           name: p.basename(path),
           status: UploadStatus.pending,
+          tags: const [],
         ),
       );
     }
@@ -178,6 +179,8 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
 
         appendLog("Runner 실행: ${parsed.title}");
 
+        final mergedTags = {...state.tags, ...file.tags}.toList();
+
         final options = {"headless": false, "delayMs": 400};
 
         // Runner 스트림 소비
@@ -188,7 +191,7 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
               ? pw
               : '',
           post: parsed,
-          tags: state.tags,
+          tags: mergedTags,
           options: options,
         )) {
           _handleRunnerMessage(file.path, file.name, msg);
@@ -260,6 +263,52 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
       return;
     }
   }
+
+  void addFileTag(String filePath, String tag) {
+    final t = tag.trim();
+    if (t.isEmpty) return;
+
+    state = state.copyWith(
+      files: state.files.map((f) {
+        if (f.path != filePath) return f;
+        if (f.tags.contains(t)) return f;
+        return f.copyWith(tags: [...f.tags, t]);
+      }).toList(),
+    );
+  }
+
+  void removeFileTag(String filePath, String tag) {
+    state = state.copyWith(
+      files: state.files.map((f) {
+        if (f.path != filePath) return f;
+        return f.copyWith(tags: f.tags.where((x) => x != tag).toList());
+      }).toList(),
+    );
+  }
+
+  void selectFile(String filePath) {
+    state = state.copyWith(selectedFilePath: filePath);
+  }
+
+  void selectNext() {
+    if (state.files.isEmpty) return;
+
+    final cur = state.selectedFilePath;
+    final idx = cur == null ? -1 : state.files.indexWhere((f) => f.path == cur);
+
+    final nextIdx = (idx + 1).clamp(0, state.files.length - 1);
+    state = state.copyWith(selectedFilePath: state.files[nextIdx].path);
+  }
+
+  void selectPrev() {
+    if (state.files.isEmpty) return;
+
+    final cur = state.selectedFilePath;
+    final idx = cur == null ? 0 : state.files.indexWhere((f) => f.path == cur);
+
+    final prevIdx = (idx - 1).clamp(0, state.files.length - 1);
+    state = state.copyWith(selectedFilePath: state.files[prevIdx].path);
+  }
 }
 
 /* ========================= State ========================= */
@@ -274,6 +323,8 @@ class TistoryPostingState {
 
   final bool isRunning;
 
+  final String? selectedFilePath;
+
   const TistoryPostingState({
     required this.accounts,
     required this.selectedAccountId,
@@ -281,6 +332,7 @@ class TistoryPostingState {
     required this.tags,
     required this.logs,
     required this.isRunning,
+    required this.selectedFilePath,
   });
 
   factory TistoryPostingState.initial() => const TistoryPostingState(
@@ -290,6 +342,7 @@ class TistoryPostingState {
     tags: [],
     logs: [],
     isRunning: false,
+    selectedFilePath: null,
   );
 
   TistoryPostingState copyWith({
@@ -299,6 +352,7 @@ class TistoryPostingState {
     List<String>? tags,
     List<String>? logs,
     bool? isRunning,
+    String? selectedFilePath,
   }) {
     return TistoryPostingState(
       accounts: accounts ?? this.accounts,
@@ -307,6 +361,7 @@ class TistoryPostingState {
       tags: tags ?? this.tags,
       logs: logs ?? this.logs,
       isRunning: isRunning ?? this.isRunning,
+      selectedFilePath: selectedFilePath ?? this.selectedFilePath,
     );
   }
 }
