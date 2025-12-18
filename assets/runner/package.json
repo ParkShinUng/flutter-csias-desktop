@@ -1,5 +1,5 @@
 {
-  "name": "tistory-playwright-runner",,
+  "name": "tistory-playwright-runner",
   "version": "1.0.0",
   "type": "module",
   "private": true,
