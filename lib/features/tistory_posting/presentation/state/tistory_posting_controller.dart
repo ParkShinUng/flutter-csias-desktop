@@ -1,5 +1,6 @@
 import 'package:csias_desktop/features/tistory_posting/data/html_post_parser.dart';
-import 'package:csias_desktop/features/tistory_posting/data/tistory_posting_service_stub.dart';
+import 'package:csias_desktop/features/tistory_posting/data/runner/runner_client.dart';
+import 'package:csias_desktop/features/tistory_posting/data/tistory_posting_service_playwright.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/parsed_post.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/services/tistory_posting_service.dart';
 import 'package:path/path.dart' as p;
@@ -9,23 +10,34 @@ import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_acc
 import 'package:csias_desktop/features/tistory_posting/domain/models/upload_file_item.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
+import 'package:csias_desktop/features/tistory_posting/data/runner/runner_message.dart';
+
 /* ============================================================
  * Provider
  * ============================================================ */
 
 final tistoryPostingProvider =
-    StateNotifierProvider<TistoryPostingController, TistoryPostingState>(
-      (ref) => TistoryPostingController(
-        accountStore: TistoryAccountStore(),
-        secretStore: SecretStore(),
-        postingService: TistoryPostingServiceStub(),
-        parser: HtmlPostParser(),
-      )..loadAccounts(),
-    );
+    StateNotifierProvider<TistoryPostingController, TistoryPostingState>((ref) {
+      final secret = SecretStore();
 
-/* ============================================================
- * Controller
- * ============================================================ */
+      // ✅ node 경로는 나중에 설정화면/환경탐지로 개선 가능
+      final runner = RunnerClient(
+        nodePath: '/opt/homebrew/bin/node', // <- Apple Silicon brew 기본
+        runnerJsPath: 'assets/runner/runner.js',
+      );
+
+      final posting = TistoryPostingServicePlaywright(
+        runner: runner,
+        secretStore: secret,
+      );
+
+      return TistoryPostingController(
+        accountStore: TistoryAccountStore(),
+        secretStore: secret,
+        postingService: posting,
+        parser: HtmlPostParser(),
+      )..loadAccounts();
+    });
 
 class TistoryPostingController extends StateNotifier<TistoryPostingState> {
   final TistoryAccountStore accountStore;
@@ -42,9 +54,7 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     required this.parser,
   }) : super(TistoryPostingState.initial());
 
-  /* =========================
-   * Accounts
-   * ========================= */
+  /* ========================= Accounts ========================= */
 
   Future<void> loadAccounts() async {
     final accounts = await accountStore.load();
@@ -67,9 +77,7 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     }
   }
 
-  /* =========================
-   * Files
-   * ========================= */
+  /* ========================= Files ========================= */
 
   void addFilesFromPaths(List<String> paths) {
     final existing = state.files.map((f) => f.path).toSet();
@@ -88,7 +96,6 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
         ),
       );
     }
-
     if (added.isEmpty) return;
 
     state = state.copyWith(files: [...state.files, ...added]);
@@ -112,9 +119,7 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     );
   }
 
-  /* =========================
-   * Tags
-   * ========================= */
+  /* ========================= Tags ========================= */
 
   void addTag(String tag) {
     final t = tag.trim();
@@ -126,44 +131,74 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     state = state.copyWith(tags: state.tags.where((t) => t != tag).toList());
   }
 
-  /* =========================
-   * Logs
-   * ========================= */
+  /* ========================= Logs ========================= */
 
   void appendLog(String log) {
     state = state.copyWith(logs: [...state.logs, log]);
   }
 
-  /* =========================
-   * Run (HTML 파싱 + Posting)
-   * ========================= */
+  /* ========================= Run ========================= */
 
   Future<void> start() async {
     final account = selectedAccount;
     if (state.isRunning || account == null) return;
+    if (state.files.isEmpty) return;
 
     state = state.copyWith(isRunning: true);
     appendLog("포스팅 시작");
 
+    // credentials면 pw를 secure store에서 읽어서 job에 주입
+    String pw = '';
+    if (account.authType == TistoryAuthType.credentials) {
+      final key = account.passwordKey;
+      if (key == null) {
+        appendLog("실패: PW 키가 없습니다. 계정 편집에서 PW 저장 필요");
+        state = state.copyWith(isRunning: false);
+        return;
+      }
+      final read = await secretStore.get(key);
+      if (read == null || read.isEmpty) {
+        appendLog("실패: SecureStorage에서 PW를 읽지 못했습니다.");
+        state = state.copyWith(isRunning: false);
+        return;
+      }
+      pw = read;
+    }
+
+    // 순차 실행(안정성 우선)
     for (final file in state.files) {
+      if (!state.isRunning) break; // stop 호출 대비
+
+      final jobId = _jobIdFor(file.path);
       try {
         _updateFileStatus(file.path, UploadStatus.running);
         appendLog("파싱 시작: ${file.name}");
 
-        // 1️⃣ HTML 파싱
         final ParsedPost parsed = parser.parseFile(file.path);
 
-        appendLog("게시 요청: ${parsed.title}");
+        appendLog("Runner 실행: ${parsed.title}");
 
-        // 2️⃣ 게시 (현재는 Stub)
-        await postingService.post(
+        final options = {"headless": false, "delayMs": 400};
+
+        // Runner 스트림 소비
+        await for (final msg in postingService.postStream(
+          jobId: jobId,
           account: account,
+          passwordOrNull: account.authType == TistoryAuthType.credentials
+              ? pw
+              : '',
           post: parsed,
           tags: state.tags,
-        );
+          options: options,
+        )) {
+          _handleRunnerMessage(file.path, file.name, msg);
+        }
 
-        _updateFileStatus(file.path, UploadStatus.success);
-        appendLog("완료: ${file.name}");
+        // 성공 로그가 이미 왔더라도, 안전하게 success로 마감
+        if (_currentStatus(file.path) != UploadStatus.failed) {
+          _updateFileStatus(file.path, UploadStatus.success);
+          appendLog("완료: ${file.name}");
+        }
       } catch (e) {
         _updateFileStatus(file.path, UploadStatus.failed);
         appendLog("실패: ${file.name} - $e");
@@ -176,13 +211,58 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
 
   void stop() {
     state = state.copyWith(isRunning: false);
-    appendLog("작업 중지");
+    appendLog("작업 중지 요청");
+  }
+
+  Future<void> retryFailed() async {
+    final failed = state.files
+        .where((f) => f.status == UploadStatus.failed)
+        .toList();
+    if (failed.isEmpty) return;
+
+    // failed만 pending으로 되돌리고 start 재호출
+    for (final f in failed) {
+      _updateFileStatus(f.path, UploadStatus.pending);
+    }
+    await start();
+  }
+
+  /* ========================= Helpers ========================= */
+
+  String _jobIdFor(String filePath) =>
+      "${DateTime.now().millisecondsSinceEpoch}_${filePath.hashCode}";
+
+  UploadStatus _currentStatus(String filePath) {
+    final f = state.files.where((x) => x.path == filePath).firstOrNull;
+    return f?.status ?? UploadStatus.pending;
+  }
+
+  void _handleRunnerMessage(
+    String filePath,
+    String fileName,
+    RunnerMessage msg,
+  ) {
+    if (msg.status == 'log') {
+      appendLog("[${fileName}] ${msg.message ?? ''}".trim());
+      return;
+    }
+
+    if (msg.status == 'failed') {
+      _updateFileStatus(filePath, UploadStatus.failed);
+      appendLog("[${fileName}] 실패: ${msg.error ?? 'unknown'}");
+      return;
+    }
+
+    if (msg.status == 'success') {
+      // success는 start()에서 최종 마감도 하지만, 여기서도 반영 가능
+      _updateFileStatus(filePath, UploadStatus.success);
+      appendLog("[${fileName}] 성공");
+      return;
+    }
   }
 }
 
-/* ============================================================
- * State
- * ============================================================ */
+/* ========================= State ========================= */
 
 class TistoryPostingState {
   final List<TistoryAccount> accounts;
@@ -229,4 +309,10 @@ class TistoryPostingState {
       isRunning: isRunning ?? this.isRunning,
     );
   }
+}
+
+/* ========================= Iterable helper ========================= */
+
+extension _FirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
 }

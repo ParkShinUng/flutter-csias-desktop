@@ -8,7 +8,6 @@ import 'package:csias_desktop/core/widgets/app_card.dart';
 import 'package:csias_desktop/core/widgets/app_button.dart';
 import 'package:csias_desktop/core/theme/app_spacing.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_controller.dart';
-import 'package:csias_desktop/features/tistory_posting/presentation/widgets/tag_chip.dart';
 
 class TistoryPostingPage extends ConsumerWidget {
   const TistoryPostingPage({super.key});
@@ -54,54 +53,70 @@ class TistoryPostingPage extends ConsumerWidget {
 
         /* ================= Middle: Files & Tags ================= */
         Expanded(
-          child: AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("파일 & 태그", style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: AppSpacing.s12),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return AppCard(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "파일 & 태그",
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: AppSpacing.s12),
 
-                DropZone(onFilesDropped: controller.addFilesFromPaths),
+                      DropZone(onFilesDropped: controller.addFilesFromPaths),
+                      const SizedBox(height: AppSpacing.s12),
 
-                const SizedBox(height: AppSpacing.s12),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.folder_open),
+                        label: const Text("파일 선택"),
+                        onPressed: () async {
+                          final result = await FilePicker.platform.pickFiles(
+                            allowMultiple: true,
+                            type: FileType.custom,
+                            allowedExtensions: ['html', 'htm'],
+                          );
+                          if (result == null) return;
 
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.folder_open),
-                  label: const Text("파일 선택"),
-                  onPressed: () async {
-                    final result = await FilePicker.platform.pickFiles(
-                      allowMultiple: true,
-                      type: FileType.custom,
-                      allowedExtensions: ['html', 'htm'],
-                    );
-                    if (result == null) return;
+                          controller.addFilesFromPaths(
+                            result.files
+                                .where((f) => f.path != null)
+                                .map((f) => f.path!)
+                                .toList(),
+                          );
+                        },
+                      ),
 
-                    controller.addFilesFromPaths(
-                      result.files
-                          .where((f) => f.path != null)
-                          .map((f) => f.path!)
-                          .toList(),
-                    );
-                  },
-                ),
+                      const SizedBox(height: AppSpacing.s12),
 
-                const SizedBox(height: AppSpacing.s12),
-
-                ...state.files.map(
-                  (f) => ListTile(
-                    dense: true,
-                    leading: _statusIcon(f.status),
-                    title: Text(f.name),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: f.status == UploadStatus.running
-                          ? null
-                          : () => controller.removeFile(f.path),
-                    ),
+                      // ✅ 여기서부터 스크롤 영역
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: state.files.length,
+                          itemBuilder: (context, index) {
+                            final f = state.files[index];
+                            return ListTile(
+                              dense: true,
+                              leading: _statusIcon(f.status),
+                              title: Text(f.name),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.close),
+                                onPressed: f.status == UploadStatus.running
+                                    ? null
+                                    : () => controller.removeFile(f.path),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              );
+            },
           ),
         ),
 
@@ -127,8 +142,10 @@ class TistoryPostingPage extends ConsumerWidget {
                     const SizedBox(width: 8),
                     OutlinedButton(
                       style: AppButton.ghost(context),
-                      onPressed: state.isRunning ? controller.stop : null,
-                      child: const Text("중지"),
+                      onPressed: state.isRunning
+                          ? null
+                          : controller.retryFailed,
+                      child: const Text("실패만 재시도"),
                     ),
                   ],
                 ),
