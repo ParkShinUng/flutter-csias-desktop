@@ -59,8 +59,9 @@ class FileRowTagEditorState extends State<FileRowTagEditor> {
     final text = raw.trim();
     if (text.isEmpty) return;
 
+    // ✅ 띄어쓰기 기반 태그 분리
     final parts = text
-        .split(RegExp(r'[,\n]'))
+        .split(RegExp(r'\s+'))
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
         .toList();

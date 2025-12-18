@@ -99,17 +99,29 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     }
     if (added.isEmpty) return;
 
+    if (state.selectedFilePath == null &&
+        (state.files.isNotEmpty || added.isNotEmpty)) {
+      final all = [...state.files, ...added];
+      state = state.copyWith(files: all, selectedFilePath: all.first.path);
+      return;
+    }
+
     state = state.copyWith(files: [...state.files, ...added]);
   }
 
   void removeFile(String path) {
-    state = state.copyWith(
-      files: state.files.where((f) => f.path != path).toList(),
-    );
+    final newFiles = state.files.where((f) => f.path != path).toList();
+
+    String? newSelected = state.selectedFilePath;
+    if (state.selectedFilePath == path) {
+      newSelected = newFiles.isNotEmpty ? newFiles.first.path : null;
+    }
+
+    state = state.copyWith(files: newFiles, selectedFilePath: newSelected);
   }
 
   void clearFiles() {
-    state = state.copyWith(files: []);
+    state = state.copyWith(files: [], selectedFilePath: null);
   }
 
   void _updateFileStatus(String path, UploadStatus status) {

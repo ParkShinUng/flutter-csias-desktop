@@ -62,29 +62,46 @@ class TistoryPostingPage extends ConsumerWidget {
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  return AppCard(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: constraints.maxHeight,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "파일 & 태그",
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: AppSpacing.s12),
+                  final hasSelected =
+                      state.selectedFilePath != null && state.files.isNotEmpty;
 
+                  return AppCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "파일 & 태그",
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: AppSpacing.s12),
+
+                        if (!hasSelected) ...[
+                          // ✅ 선택된 파일 없으면 DropZone만 크게
                           DropZone(
                             onFilesSelected: controller.addFilesFromPaths,
                             fileCount: state.files.length,
                           ),
+                        ] else ...[
+                          // ✅ 선택된 파일 있으면 상단 액션 + 리스트
+                          Row(
+                            children: [
+                              Text(
+                                "선택된 파일 : ${state.files.length}개",
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              const Spacer(),
+                              TextButton.icon(
+                                onPressed: state.isRunning
+                                    ? null
+                                    : controller.clearFiles,
+                                icon: const Icon(Icons.delete_outline),
+                                label: const Text("전체 초기화"),
+                              ),
+                            ],
+                          ),
                           const SizedBox(height: AppSpacing.s12),
 
-                          const SizedBox(height: AppSpacing.s12),
-
-                          // ✅ 여기서부터 스크롤 영역
+                          // ✅ 파일 리스트
                           Expanded(
                             child: FileListPanel(
                               statusIconBuilder: (status) =>
@@ -92,7 +109,7 @@ class TistoryPostingPage extends ConsumerWidget {
                             ),
                           ),
                         ],
-                      ),
+                      ],
                     ),
                   );
                 },

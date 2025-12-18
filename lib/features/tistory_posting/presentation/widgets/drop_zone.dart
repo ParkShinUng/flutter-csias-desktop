@@ -82,11 +82,6 @@ class _DropZoneState extends State<DropZone> {
                         ".html / .htm만 허용",
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
-                      const SizedBox(height: 10),
-                      Text(
-                        "선택됨: ${widget.fileCount}개",
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
                     ],
                   ),
                 ),
