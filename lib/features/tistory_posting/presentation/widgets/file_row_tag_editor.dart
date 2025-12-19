@@ -148,7 +148,7 @@ class FileRowTagEditorState extends State<FileRowTagEditor> {
                       enabled: !widget.disabled,
                       textInputAction: TextInputAction.done,
                       decoration: InputDecoration(
-                        hintText: "태그 입력 후 Enter (콤마로 여러 개 가능)",
+                        hintText: "태그 입력 후 Enter (띄어쓰기 구분으로 여러 개 가능)",
                         isDense: true,
                         suffixIcon: IconButton(
                           tooltip: "추가",

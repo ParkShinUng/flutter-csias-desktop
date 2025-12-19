@@ -3,20 +3,35 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../domain/models/tistory_account.dart';
 
 class TistoryAccountStore {
-  static const _key = 'tistory_accounts_v1';
+  static const _key = 'tistory_accounts';
 
-  Future<List<TistoryAccount>> load() async {
+  Future<List<TistoryAccount>> loadAccounts() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
-    if (raw == null || raw.isEmpty) return [];
+    if (raw == null) return [];
 
-    final list = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
-    return list.map(TistoryAccount.fromJson).toList();
+    final List decoded = jsonDecode(raw);
+    return decoded
+        .map(
+          (e) => TistoryAccount(
+            id: e['id'],
+            kakaoId: e['kakaoId'],
+            password: e['password'],
+            blogName: e['blogName'],
+          ),
+        )
+        .toList();
   }
 
-  Future<void> save(List<TistoryAccount> accounts) async {
+  Future<void> saveAccounts(List<TistoryAccount> accounts) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = jsonEncode(accounts.map((a) => a.toJson()).toList());
-    await prefs.setString(_key, raw);
+    final encoded = jsonEncode(
+      accounts
+          .map(
+            (a) => {'id': a.id, 'kakaoId': a.kakaoId, 'blogName': a.blogName},
+          )
+          .toList(),
+    );
+    await prefs.setString(_key, encoded);
   }
 }

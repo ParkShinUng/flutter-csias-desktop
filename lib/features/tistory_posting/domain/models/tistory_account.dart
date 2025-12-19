@@ -1,76 +1,44 @@
-enum TistoryAuthType { credentials, cookies }
-
 class TistoryAccount {
   final String id;
-  final String displayName;
-  final TistoryAuthType authType;
-
-  // credentials
-  final String? loginId;
-  final String? passwordKey; // secure storage key
-  final String? blogName;
-
-  // cookies
-  final String? tsSession;
-  final String? tAno;
+  final String kakaoId;
+  final String password;
+  final String blogName;
 
   const TistoryAccount({
     required this.id,
-    required this.displayName,
-    required this.authType,
-    this.loginId,
-    this.passwordKey,
-    this.blogName,
-    this.tsSession,
-    this.tAno,
+    required this.kakaoId,
+    required this.password,
+    required this.blogName,
   });
 
   TistoryAccount copyWith({
     String? id,
     String? displayName,
-    TistoryAuthType? authType,
     String? loginId,
-    String? passwordKey,
+    String? password,
     String? blogName,
-    String? tsSession,
-    String? tAno,
   }) {
     return TistoryAccount(
       id: id ?? this.id,
-      displayName: displayName ?? this.displayName,
-      authType: authType ?? this.authType,
-      loginId: loginId ?? this.loginId,
-      passwordKey: passwordKey ?? this.passwordKey,
+      kakaoId: displayName ?? this.kakaoId,
+      password: password ?? this.password,
       blogName: blogName ?? this.blogName,
-      tsSession: tsSession ?? this.tsSession,
-      tAno: tAno ?? this.tAno,
     );
   }
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'displayName': displayName,
-    'authType': authType.name,
-    'loginId': loginId,
-    'passwordKey': passwordKey,
+    'kakaoId': kakaoId,
+    'password': password,
     'blogName': blogName,
-    'tsSession': tsSession,
-    'tAno': tAno,
   };
 
   static TistoryAccount fromJson(Map<String, dynamic> json) {
     return TistoryAccount(
       id: json['id'] as String,
-      displayName: json['displayName'] as String,
-      authType: TistoryAuthType.values.firstWhere(
-        (e) => e.name == json['authType'],
-        orElse: () => TistoryAuthType.credentials,
-      ),
-      loginId: json['loginId'] as String?,
-      passwordKey: json['passwordKey'] as String?,
-      blogName: json['blogName'] as String?,
-      tsSession: json['tsSession'] as String?,
-      tAno: json['tAno'] as String?,
+      kakaoId: json['displayName'] as String,
+      password: json['passwordKey'] as String,
+      blogName: json['blogName'] as String,
     );
   }
 }

@@ -1,4 +1,3 @@
-import 'package:csias_desktop/core/services/secret_store.dart';
 import 'package:csias_desktop/features/tistory_posting/data/runner/runner_message.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/parsed_post.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_account.dart';
@@ -8,12 +7,8 @@ import 'runner/runner_client.dart';
 
 class TistoryPostingServicePlaywright implements TistoryPostingService {
   final RunnerClient runner;
-  final SecretStore secretStore;
 
-  TistoryPostingServicePlaywright({
-    required this.runner,
-    required this.secretStore,
-  });
+  TistoryPostingServicePlaywright({required this.runner});
 
   @override
   Stream<RunnerMessage> postStream({
@@ -35,22 +30,12 @@ class TistoryPostingServicePlaywright implements TistoryPostingService {
     yield* runner.runJob(job);
   }
 
-  Map<String, dynamic> _buildAccount(
-    TistoryAccount account,
-    String passwordOrNull,
-  ) {
-    if (account.authType.name == "credentials") {
-      return {
-        "authType": "credentials",
-        "loginId": account.loginId,
-        "password": passwordOrNull,
-        "blogName": account.blogName,
-      };
-    }
-
+  Map<String, dynamic> _buildAccount(TistoryAccount account, String password) {
     return {
-      "authType": "cookies",
-      "cookies": {"TSSESSION": account.tsSession, "_T_ANO": account.tAno},
+      "authType": "credentials",
+      "loginId": account.kakaoId,
+      "password": password,
+      "blogName": account.blogName,
     };
   }
 }

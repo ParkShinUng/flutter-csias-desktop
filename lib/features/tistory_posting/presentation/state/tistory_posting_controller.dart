@@ -4,7 +4,6 @@ import 'package:csias_desktop/features/tistory_posting/data/tistory_posting_serv
 import 'package:csias_desktop/features/tistory_posting/domain/models/parsed_post.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/services/tistory_posting_service.dart';
 import 'package:path/path.dart' as p;
-import 'package:csias_desktop/core/services/secret_store.dart';
 import 'package:csias_desktop/features/tistory_posting/data/tistory_account_store.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_account.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/upload_file_item.dart';
@@ -15,33 +14,27 @@ import 'package:csias_desktop/features/tistory_posting/data/runner/runner_messag
 /* ============================================================
  * Provider
  * ============================================================ */
-
 final tistoryPostingProvider =
     StateNotifierProvider<TistoryPostingController, TistoryPostingState>((ref) {
-      final secret = SecretStore();
-
       // ✅ node 경로는 나중에 설정화면/환경탐지로 개선 가능
       final runner = RunnerClient(
         nodePath: '/opt/homebrew/bin/node', // <- Apple Silicon brew 기본
         runnerJsPath: 'assets/runner/runner.js',
       );
 
-      final posting = TistoryPostingServicePlaywright(
-        runner: runner,
-        secretStore: secret,
-      );
+      final posting = TistoryPostingServicePlaywright(runner: runner);
 
-      return TistoryPostingController(
+      final controller = TistoryPostingController(
         accountStore: TistoryAccountStore(),
-        secretStore: secret,
         postingService: posting,
         parser: HtmlPostParser(),
-      )..loadAccounts();
+      );
+      controller.loadAccounts(); // ✅ 여기
+      return controller;
     });
 
 class TistoryPostingController extends StateNotifier<TistoryPostingState> {
   final TistoryAccountStore accountStore;
-  final SecretStore secretStore;
   final TistoryPostingService postingService;
   final HtmlPostParser parser;
 
@@ -49,7 +42,6 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
 
   TistoryPostingController({
     required this.accountStore,
-    required this.secretStore,
     required this.postingService,
     required this.parser,
   }) : super(TistoryPostingState.initial());
@@ -57,7 +49,8 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
   /* ========================= Accounts ========================= */
 
   Future<void> loadAccounts() async {
-    final accounts = await accountStore.load();
+    final accounts = await accountStore.loadAccounts();
+
     state = state.copyWith(
       accounts: accounts,
       selectedAccountId: accounts.isNotEmpty ? accounts.first.id : null,
@@ -161,22 +154,7 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     appendLog("포스팅 시작");
 
     // credentials면 pw를 secure store에서 읽어서 job에 주입
-    String pw = '';
-    if (account.authType == TistoryAuthType.credentials) {
-      final key = account.passwordKey;
-      if (key == null) {
-        appendLog("실패: PW 키가 없습니다. 계정 편집에서 PW 저장 필요");
-        state = state.copyWith(isRunning: false);
-        return;
-      }
-      final read = await secretStore.get(key);
-      if (read == null || read.isEmpty) {
-        appendLog("실패: SecureStorage에서 PW를 읽지 못했습니다.");
-        state = state.copyWith(isRunning: false);
-        return;
-      }
-      pw = read;
-    }
+    String pw = account.password;
 
     // 순차 실행(안정성 우선)
     for (final file in state.files) {
@@ -199,9 +177,7 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
         await for (final msg in postingService.postStream(
           jobId: jobId,
           account: account,
-          passwordOrNull: account.authType == TistoryAuthType.credentials
-              ? pw
-              : '',
+          passwordOrNull: pw,
           post: parsed,
           tags: mergedTags,
           options: options,
@@ -320,6 +296,60 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
 
     final prevIdx = (idx - 1).clamp(0, state.files.length - 1);
     state = state.copyWith(selectedFilePath: state.files[prevIdx].path);
+  }
+
+  Future<void> addAccount({
+    required String kakaoId,
+    required String password,
+    required String blogName,
+  }) async {
+    final newId = DateTime.now().microsecondsSinceEpoch.toString();
+
+    final account = TistoryAccount(
+      id: newId,
+      kakaoId: kakaoId.trim(),
+      password: password.trim(),
+      blogName: blogName.trim(),
+    );
+
+    final updated = [...state.accounts, account];
+
+    await accountStore.saveAccounts(updated);
+
+    state = state.copyWith(accounts: updated, selectedAccountId: newId);
+  }
+
+  Future<void> updateAccount({
+    required String id,
+    required String kakaoId,
+    required String password,
+    required String blogName,
+  }) async {
+    final updated = state.accounts.map((a) {
+      if (a.id != id) return a;
+      return TistoryAccount(
+        id: a.id,
+        kakaoId: kakaoId.trim(),
+        password: password.trim(),
+        blogName: blogName.trim(),
+      );
+    }).toList();
+
+    await accountStore.saveAccounts(updated);
+
+    state = state.copyWith(accounts: updated);
+  }
+
+  Future<void> deleteAccount(String id) async {
+    final updated = state.accounts.where((a) => a.id != id).toList();
+
+    await accountStore.saveAccounts(updated);
+
+    final newSelected = (state.selectedAccountId == id)
+        ? (updated.isNotEmpty ? updated.first.id : null)
+        : state.selectedAccountId;
+
+    state = state.copyWith(accounts: updated, selectedAccountId: newSelected);
   }
 }
 

@@ -33,14 +33,22 @@ class _DropZoneState extends State<DropZone> {
         .map((f) => f.path!)
         .toList();
 
-    if (paths.isNotEmpty) widget.onFilesSelected(paths);
+    if (paths.isNotEmpty) {
+      widget.onFilesSelected(paths);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     final borderColor = _isDragging
-        ? Theme.of(context).colorScheme.primary
+        ? scheme.primary
         : Theme.of(context).dividerColor;
+
+    final backgroundColor = _isDragging
+        ? scheme.primaryContainer.withValues(alpha: 0.18)
+        : Colors.transparent;
 
     return DropTarget(
       onDragEntered: (_) => setState(() => _isDragging = true),
@@ -52,40 +60,50 @@ class _DropZoneState extends State<DropZone> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(AppSpacing.r16),
           onTap: _pickFiles,
+          borderRadius: BorderRadius.circular(AppSpacing.r16),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
-            height: 150,
-            padding: const EdgeInsets.all(AppSpacing.s16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppSpacing.r16),
-              border: Border.all(color: borderColor, width: 1.5),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.upload_file, size: 38),
-                const SizedBox(width: 14),
-                Expanded(
+            curve: Curves.easeOut,
+            child: SizedBox.expand(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: backgroundColor,
+                  borderRadius: BorderRadius.circular(AppSpacing.r16),
+                  border: Border.all(color: borderColor, width: 1.5),
+                ),
+                padding: const EdgeInsets.all(AppSpacing.s16),
+                child: Center(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
+                      Icon(Icons.upload_file, size: 48, color: scheme.primary),
+                      const SizedBox(height: 12),
                       Text(
                         _isDragging
                             ? "여기에 놓으면 추가됩니다"
                             : "Drag & Drop 또는 클릭해서 파일 선택",
-                        style: Theme.of(context).textTheme.bodyMedium,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        ".html / .htm만 허용",
+                        ".html / .htm 파일만 허용",
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        "선택됨: ${widget.fileCount}개",
+                        textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         ),
