@@ -1,7 +1,6 @@
-import 'package:csias_desktop/features/tistory_posting/domain/models/upload_file_item.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/widgets/account_manager_dialog.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/widgets/drop_zone.dart';
-import 'package:csias_desktop/features/tistory_posting/presentation/widgets/file_list_panel.dart';
+import 'package:csias_desktop/features/tistory_posting/presentation/widgets/file_table_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -197,32 +196,6 @@ class TistoryPostingPage extends ConsumerWidget {
                                                 context,
                                               ).textTheme.bodyMedium,
                                             ),
-                                            const SizedBox(width: 10),
-                                            const Spacer(),
-                                            // 전역 태그(원하면 제거 가능)
-                                            SizedBox(
-                                              width: 360,
-                                              child: TextField(
-                                                enabled: !state.isRunning,
-                                                decoration: const InputDecoration(
-                                                  hintText:
-                                                      "전역 태그 입력 후 Enter (띄어쓰기로 여러 개)",
-                                                  isDense: true,
-                                                ),
-                                                onSubmitted: (v) {
-                                                  // 띄어쓰기 기반 다중 입력
-                                                  final parts = v
-                                                      .trim()
-                                                      .split(RegExp(r'\s+'))
-                                                      .where(
-                                                        (e) => e.isNotEmpty,
-                                                      );
-                                                  for (final t in parts) {
-                                                    controller.addTag(t);
-                                                  }
-                                                },
-                                              ),
-                                            ),
                                           ],
                                         ),
                                         const SizedBox(height: AppSpacing.s12),
@@ -251,9 +224,20 @@ class TistoryPostingPage extends ConsumerWidget {
 
                                         // 파일 리스트(파일별 태그 + 선택 하이라이트 + ↑↓ 이동)
                                         Expanded(
-                                          child: FileListPanel(
-                                            statusIconBuilder: (status) =>
-                                                _statusIcon(context, status),
+                                          child: FileTablePanel(
+                                            files: state.files,
+                                            disabled: state.isRunning,
+                                            onSubmitTags: (filePath, tags) {
+                                              // ✅ 컨트롤러에 “파일별 태그 추가” 메서드 연결
+                                              // 아래 메서드명이 너 프로젝트에 없으면 Step 3에서 추가해줄게.
+                                              controller.addTagsToFile(
+                                                filePath,
+                                                tags,
+                                              );
+                                            },
+                                            onRemoveFile: (filePath) {
+                                              controller.removeFile(filePath);
+                                            },
                                           ),
                                         ),
                                       ],
@@ -324,26 +308,5 @@ class TistoryPostingPage extends ConsumerWidget {
         );
       },
     );
-  }
-
-  Widget _statusIcon(BuildContext context, UploadStatus status) {
-    final scheme = Theme.of(context).colorScheme;
-    switch (status) {
-      case UploadStatus.pending:
-        return Icon(Icons.schedule, size: 18, color: scheme.outline);
-      case UploadStatus.running:
-        return SizedBox(
-          width: 18,
-          height: 18,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: scheme.primary,
-          ),
-        );
-      case UploadStatus.success:
-        return Icon(Icons.check_circle, size: 18, color: scheme.tertiary);
-      case UploadStatus.failed:
-        return Icon(Icons.error, size: 18, color: scheme.error);
-    }
   }
 }

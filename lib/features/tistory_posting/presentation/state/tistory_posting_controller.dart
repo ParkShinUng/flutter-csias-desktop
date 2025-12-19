@@ -29,7 +29,7 @@ final tistoryPostingProvider =
         postingService: posting,
         parser: HtmlPostParser(),
       );
-      controller.loadAccounts(); // ✅ 여기
+      Future.microtask(controller.loadAccounts);
       return controller;
     });
 
@@ -153,8 +153,11 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     state = state.copyWith(isRunning: true);
     appendLog("포스팅 시작");
 
-    // credentials면 pw를 secure store에서 읽어서 job에 주입
     String pw = account.password;
+
+    // node 실행 매개변수로 id, pw, blogName, (filePathList, Tag) 전달 및 로그인만 진행 후 cookie 추출
+    // 추출한 header, cookie 정보로 blog post
+    // return 받은 cookie 로 각 html 파일 request 진행(포스팅)
 
     // 순차 실행(안정성 우선)
     for (final file in state.files) {
@@ -315,7 +318,6 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     final updated = [...state.accounts, account];
 
     await accountStore.saveAccounts(updated);
-
     state = state.copyWith(accounts: updated, selectedAccountId: newId);
   }
 
@@ -336,7 +338,6 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     }).toList();
 
     await accountStore.saveAccounts(updated);
-
     state = state.copyWith(accounts: updated);
   }
 
@@ -348,8 +349,18 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     final newSelected = (state.selectedAccountId == id)
         ? (updated.isNotEmpty ? updated.first.id : null)
         : state.selectedAccountId;
-
     state = state.copyWith(accounts: updated, selectedAccountId: newSelected);
+  }
+
+  void addTagsToFile(String filePath, List<String> tags) {
+    final newFiles = state.files.map((f) {
+      if (f.path != filePath) return f;
+
+      final merged = {...f.tags, ...tags}.toList(); // 중복 제거
+      return f.copyWith(tags: merged);
+    }).toList();
+
+    state = state.copyWith(files: newFiles);
   }
 }
 

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/cupertino.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../domain/models/tistory_account.dart';
 
@@ -6,32 +7,58 @@ class TistoryAccountStore {
   static const _key = 'tistory_accounts';
 
   Future<List<TistoryAccount>> loadAccounts() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_key);
-    if (raw == null) return [];
+    try {
+      final prefs = await SharedPreferences.getInstance();
 
-    final List decoded = jsonDecode(raw);
-    return decoded
-        .map(
-          (e) => TistoryAccount(
-            id: e['id'],
-            kakaoId: e['kakaoId'],
-            password: e['password'],
-            blogName: e['blogName'],
+      final raw = prefs.getString(_key);
+      if (raw == null) return [];
+
+      final List decoded = jsonDecode(raw);
+
+      final accountList = <TistoryAccount>[];
+      for (final item in decoded) {
+        if (item is! Map) continue;
+
+        final id = item['id']?.toString().trim();
+        final kakaoId = item['kakaoId']?.toString().trim();
+        final password = item['password']?.toString().trim();
+        final blogName = item['blogName']?.toString().trim();
+
+        if (id == null || id.isEmpty) continue;
+        if (kakaoId == null || kakaoId.isEmpty) continue;
+        if (password == null || password.isEmpty) continue;
+
+        accountList.add(
+          TistoryAccount(
+            id: id,
+            kakaoId: kakaoId,
+            blogName: (blogName ?? ""),
+            password: password,
           ),
-        )
-        .toList();
+        );
+      }
+
+      return accountList;
+    } catch (e, st) {
+      debugPrint('[AccountStore] load ERROR: $e\n$st');
+      return [];
+    }
   }
 
   Future<void> saveAccounts(List<TistoryAccount> accounts) async {
-    final prefs = await SharedPreferences.getInstance();
-    final encoded = jsonEncode(
-      accounts
-          .map(
-            (a) => {'id': a.id, 'kakaoId': a.kakaoId, 'blogName': a.blogName},
-          )
-          .toList(),
-    );
-    await prefs.setString(_key, encoded);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = jsonEncode(
+        accounts
+            .map(
+              (a) => {'id': a.id, 'kakaoId': a.kakaoId, 'blogName': a.blogName},
+            )
+            .toList(),
+      );
+
+      await prefs.setString(_key, encoded);
+    } catch (e, st) {
+      debugPrint('[AccountStore] save ERROR: $e\n$st');
+    }
   }
 }
