@@ -45,7 +45,7 @@ class FileTablePanel extends StatelessWidget {
               const SizedBox(width: AppSpacing.s12),
               const Expanded(
                 flex: 5,
-                child: Text("태그 입력 (띄어쓰기)", overflow: TextOverflow.ellipsis),
+                child: Text("태그 입력 (띄어쓰기 구분)", overflow: TextOverflow.ellipsis),
               ),
               const SizedBox(width: AppSpacing.s12),
               SizedBox(
