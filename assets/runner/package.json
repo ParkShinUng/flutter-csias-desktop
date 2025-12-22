@@ -1,7 +1,7 @@
 {
   "name": "tistory-playwright-runner",
   "version": "1.0.0",
-  "type": "module",
+  "type": "commonjs",
   "private": true,
   "scripts": {
     "run": "node runner.js"

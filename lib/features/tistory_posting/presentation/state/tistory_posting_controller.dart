@@ -155,10 +155,6 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
 
     String pw = account.password;
 
-    // node 실행 매개변수로 id, pw, blogName, (filePathList, Tag) 전달 및 로그인만 진행 후 cookie 추출
-    // 추출한 header, cookie 정보로 blog post
-    // return 받은 cookie 로 각 html 파일 request 진행(포스팅)
-
     // 순차 실행(안정성 우선)
     for (final file in state.files) {
       if (!state.isRunning) break; // stop 호출 대비
