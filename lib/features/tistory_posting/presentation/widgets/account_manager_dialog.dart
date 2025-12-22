@@ -64,6 +64,7 @@ class _AccountManagerDialogState extends ConsumerState<AccountManagerDialog> {
 
     return Dialog(
       insetPadding: const EdgeInsets.all(24),
+      clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 980, maxHeight: 600),
         child: Padding(
@@ -170,7 +171,7 @@ class _AccountManagerDialogState extends ConsumerState<AccountManagerDialog> {
 
                             TextFormField(
                               controller: _kakaoId,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: "카카오 ID",
                                 isDense: true,
                               ),
@@ -182,7 +183,6 @@ class _AccountManagerDialogState extends ConsumerState<AccountManagerDialog> {
 
                             TextFormField(
                               controller: _pw,
-                              obscureText: true,
                               decoration: InputDecoration(
                                 labelText: isEdit
                                     ? "카카오 PW (변경 시에만 입력)"
@@ -201,7 +201,7 @@ class _AccountManagerDialogState extends ConsumerState<AccountManagerDialog> {
 
                             TextFormField(
                               controller: _blog,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: "Blog Name",
                                 hintText: "예) korea-beauty-editor-best",
                                 isDense: true,
