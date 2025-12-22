@@ -23,6 +23,7 @@ class TistoryAccountStore {
         final kakaoId = item['kakaoId']?.toString().trim();
         final password = item['password']?.toString().trim();
         final blogName = item['blogName']?.toString().trim();
+        final storageStatePath = item['storageStatePath']?.toString().trim();
 
         if (id == null || id.isEmpty) continue;
         if (kakaoId == null || kakaoId.isEmpty) continue;
@@ -34,6 +35,7 @@ class TistoryAccountStore {
             kakaoId: kakaoId,
             blogName: (blogName ?? ""),
             password: password,
+            storageStatePath: storageStatePath,
           ),
         );
       }

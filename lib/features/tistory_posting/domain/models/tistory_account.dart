@@ -3,26 +3,29 @@ class TistoryAccount {
   final String kakaoId;
   final String password;
   final String blogName;
+  final String? storageStatePath;
 
   const TistoryAccount({
     required this.id,
     required this.kakaoId,
     required this.password,
     required this.blogName,
+    required this.storageStatePath,
   });
 
   TistoryAccount copyWith({
     String? id,
-    String? displayName,
-    String? loginId,
+    String? kakaoId,
     String? password,
     String? blogName,
+    String? storageStatePath,
   }) {
     return TistoryAccount(
       id: id ?? this.id,
-      kakaoId: displayName ?? this.kakaoId,
+      kakaoId: kakaoId ?? this.kakaoId,
       password: password ?? this.password,
       blogName: blogName ?? this.blogName,
+      storageStatePath: storageStatePath ?? this.storageStatePath,
     );
   }
 
@@ -31,6 +34,7 @@ class TistoryAccount {
     'kakaoId': kakaoId,
     'password': password,
     'blogName': blogName,
+    'storagePath': storageStatePath,
   };
 
   static TistoryAccount fromJson(Map<String, dynamic> json) {
@@ -39,6 +43,7 @@ class TistoryAccount {
       kakaoId: json['displayName'] as String,
       password: json['passwordKey'] as String,
       blogName: json['blogName'] as String,
+      storageStatePath: json['storageStatePath'] as String,
     );
   }
 }

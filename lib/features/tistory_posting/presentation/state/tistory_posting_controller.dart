@@ -313,6 +313,7 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
       kakaoId: kakaoId.trim(),
       password: password.trim(),
       blogName: blogName.trim(),
+      storageStatePath: "${kakaoId}_storageState.json",
     );
 
     final updated = [...state.accounts, account];
@@ -334,6 +335,7 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
         kakaoId: kakaoId.trim(),
         password: password.trim(),
         blogName: blogName.trim(),
+        storageStatePath: a.storageStatePath,
       );
     }).toList();
 
