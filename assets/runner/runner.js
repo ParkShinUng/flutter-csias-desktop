@@ -109,11 +109,11 @@ async function postByRequest(context, { blogName, title, bodyHtml, tags, extraHe
     "daumLike": "401",
     "cclCommercial": 0,
     "cclDerive": 0,
-    "thumbnail": None,
+    "thumbnail": null,
     "type": "post",
     "attachments": [],
     "recaptchaValue": "",
-    "draftSequence": None
+    "draftSequence": null
   }
 
   const postUrl = `https://${blogName}.tistory.com/manage/post.json`; // <- 예시, 실제로는 캡처 필요
