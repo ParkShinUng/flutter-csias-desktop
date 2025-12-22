@@ -13,15 +13,16 @@ class TistoryPostingServicePlaywright implements TistoryPostingService {
   @override
   Stream<RunnerMessage> postStream({
     required String jobId,
-    required TistoryAccount account,
-    required String passwordOrNull,
+    required String kakaoId,
+    required String password,
+    required String blogName,
     required ParsedPost post,
     required List<String> tags,
     required Map<String, dynamic> options,
   }) async* {
     final job = <String, dynamic>{
       "jobId": jobId,
-      "account": _buildAccount(account, passwordOrNull),
+      "account": _buildAccount(kakaoId, password, blogName),
       "post": {"title": post.title, "bodyHtml": post.bodyHtml},
       "tags": tags,
       "options": options,
@@ -30,12 +31,16 @@ class TistoryPostingServicePlaywright implements TistoryPostingService {
     yield* runner.runJob(job);
   }
 
-  Map<String, dynamic> _buildAccount(TistoryAccount account, String password) {
+  Map<String, dynamic> _buildAccount(
+    String kakaoId,
+    String password,
+    String blogName,
+  ) {
     return {
       "authType": "credentials",
-      "loginId": account.kakaoId,
+      "loginId": kakaoId,
       "password": password,
-      "blogName": account.blogName,
+      "blogName": blogName,
     };
   }
 }

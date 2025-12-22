@@ -62,14 +62,6 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     state = state.copyWith(selectedAccountId: id);
   }
 
-  TistoryAccount? get selectedAccount {
-    try {
-      return state.accounts.firstWhere((a) => a.id == state.selectedAccountId);
-    } catch (_) {
-      return null;
-    }
-  }
-
   /* ========================= Files ========================= */
 
   void addFilesFromPaths(List<String> paths) {
@@ -146,14 +138,16 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
   /* ========================= Run ========================= */
 
   Future<void> start() async {
-    final account = selectedAccount;
-    if (state.isRunning || account == null) return;
+    String kakaoId = state.draftKakaoId!;
+    String password = state.draftPassword!;
+    String blogName = state.draftBlogName!;
+
+    if (state.isRunning) return;
     if (state.files.isEmpty) return;
+    if (kakaoId.isEmpty || password.isEmpty || blogName.isEmpty) return;
 
     state = state.copyWith(isRunning: true);
     appendLog("포스팅 시작");
-
-    String pw = account.password;
 
     // 순차 실행(안정성 우선)
     for (final file in state.files) {
@@ -175,8 +169,9 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
         // Runner 스트림 소비
         await for (final msg in postingService.postStream(
           jobId: jobId,
-          account: account,
-          passwordOrNull: pw,
+          kakaoId: kakaoId,
+          password: password,
+          blogName: blogName,
           post: parsed,
           tags: mergedTags,
           options: options,
@@ -360,6 +355,18 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
 
     state = state.copyWith(files: newFiles);
   }
+
+  void setDraftKakaoId(String v) {
+    state = state.copyWith(draftKakaoId: v);
+  }
+
+  void setDraftPassword(String v) {
+    state = state.copyWith(draftPassword: v);
+  }
+
+  void setDraftBlogName(String v) {
+    state = state.copyWith(draftBlogName: v);
+  }
 }
 
 /* ========================= State ========================= */
@@ -376,6 +383,10 @@ class TistoryPostingState {
 
   final String? selectedFilePath;
 
+  final String? draftKakaoId;
+  final String? draftPassword;
+  final String? draftBlogName;
+
   const TistoryPostingState({
     required this.accounts,
     required this.selectedAccountId,
@@ -384,6 +395,9 @@ class TistoryPostingState {
     required this.logs,
     required this.isRunning,
     required this.selectedFilePath,
+    required this.draftKakaoId,
+    required this.draftPassword,
+    required this.draftBlogName,
   });
 
   factory TistoryPostingState.initial() => const TistoryPostingState(
@@ -394,6 +408,9 @@ class TistoryPostingState {
     logs: [],
     isRunning: false,
     selectedFilePath: null,
+    draftKakaoId: null,
+    draftPassword: null,
+    draftBlogName: null,
   );
 
   TistoryPostingState copyWith({
@@ -404,6 +421,9 @@ class TistoryPostingState {
     List<String>? logs,
     bool? isRunning,
     String? selectedFilePath,
+    String? draftKakaoId,
+    String? draftPassword,
+    String? draftBlogName,
   }) {
     return TistoryPostingState(
       accounts: accounts ?? this.accounts,
@@ -413,6 +433,9 @@ class TistoryPostingState {
       logs: logs ?? this.logs,
       isRunning: isRunning ?? this.isRunning,
       selectedFilePath: selectedFilePath ?? this.selectedFilePath,
+      draftKakaoId: draftKakaoId ?? this.draftKakaoId,
+      draftPassword: draftPassword ?? this.draftPassword,
+      draftBlogName: draftBlogName ?? this.draftBlogName,
     );
   }
 }

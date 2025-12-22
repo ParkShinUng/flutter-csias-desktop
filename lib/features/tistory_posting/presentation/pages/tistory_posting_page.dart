@@ -1,4 +1,4 @@
-import 'package:csias_desktop/features/tistory_posting/presentation/widgets/account_manager_dialog.dart';
+import 'package:csias_desktop/features/tistory_posting/presentation/widgets/account_inline_input_bar.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/widgets/drop_zone.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/widgets/file_table_panel.dart';
 import 'package:flutter/material.dart';
@@ -25,114 +25,29 @@ class TistoryPostingPage extends ConsumerWidget {
         final h = constraints.maxHeight;
 
         // ✅ 3행 비율 (원하면 숫자만 조정)
-        final row1 = (h * 0.12).clamp(96.0, 120.0);
-        final row3 = (h * 0.28).clamp(220.0, 360.0);
-        final row2 = h - row1 - row3 - (AppSpacing.s16 * 2); // 카드 사이 간격 2개
+        final row1 = (h * 0.18).clamp(150.0, 150.0);
+        final row2 = (h - row1) - (AppSpacing.s16 * 2);
 
         return Column(
           children: [
             // ===================== ROW 1: Top Bar (Account + Actions) =====================
             SizedBox(
-              height: 100,
+              height: row1,
               child: AppCard(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.s16,
                     vertical: 12,
                   ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      // ===== Left: Account selector (compact) =====
-                      SizedBox(
-                        width: 300,
-                        child: DropdownButtonFormField<String>(
-                          // 🔽 드롭다운 목록 (기존 그대로)
-                          items: state.accounts
-                              .map(
-                                (a) => DropdownMenuItem(
-                                  value: a.id,
-                                  child: Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.person_outline,
-                                        size: 18,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          a.kakaoId,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              )
-                              .toList(),
-
-                          // ✅ 선택된 값 표시를 "중앙 정렬"로 커스터마이즈
-                          selectedItemBuilder: (context) {
-                            return state.accounts.map((a) {
-                              return Center(
-                                child: Text(
-                                  a.kakaoId,
-                                  textAlign: TextAlign.center,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodyMedium,
-                                ),
-                              );
-                            }).toList();
-                          },
-
-                          onChanged: state.isRunning
-                              ? null
-                              : controller.selectAccountId,
-
-                          decoration: const InputDecoration(
-                            labelText: "계정",
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(width: AppSpacing.s8),
-
-                      OutlinedButton.icon(
-                        icon: const Icon(Icons.manage_accounts_outlined),
-                        label: const Text("계정 관리"),
-                        onPressed: state.isRunning
-                            ? null
-                            : () => showDialog(
-                                context: context,
-                                builder: (_) => const AccountManagerDialog(),
-                              ),
-                      ),
-
-                      const Spacer(),
-
-                      // ===== Right: Primary action(s) =====
-                      SizedBox(
-                        height: 44,
-                        child: FilledButton.icon(
-                          onPressed: state.isRunning ? null : controller.start,
-                          icon: state.isRunning
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.play_arrow),
-                          label: Text(state.isRunning ? "실행 중" : "포스팅 시작"),
-                        ),
-                      ),
-                    ],
+                  child: AccountInlineInputBar(
+                    disabled: state.isRunning,
+                    isRunning: state.isRunning,
+                    initialKakaoId: state.draftKakaoId ?? "",
+                    initialBlogName: state.draftBlogName ?? "",
+                    onChangedId: controller.setDraftKakaoId,
+                    onChangedPw: controller.setDraftPassword,
+                    onChangedBlogName: controller.setDraftBlogName,
+                    onStart: controller.start,
                   ),
                 ),
               ),
@@ -253,57 +168,6 @@ class TistoryPostingPage extends ConsumerWidget {
             ),
 
             const SizedBox(height: AppSpacing.s8),
-
-            // ===================== ROW 3: 로그 =====================
-            SizedBox(
-              height: row3,
-              child: AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          "로그",
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const Spacer(),
-                        Text(
-                          "${state.logs.length} lines",
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.s12),
-
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(AppSpacing.r12),
-                          border: Border.all(
-                            color: Theme.of(context).dividerColor,
-                          ),
-                        ),
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(AppSpacing.s12),
-                          itemCount: state.logs.length,
-                          itemBuilder: (context, i) {
-                            final line = state.logs[i];
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 3),
-                              child: Text(
-                                line,
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
           ],
         );
       },
