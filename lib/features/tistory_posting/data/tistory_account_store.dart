@@ -6,11 +6,13 @@ import '../domain/models/tistory_account.dart';
 class TistoryAccountStore {
   static const _key = 'tistory_accounts';
 
+  static late final SharedPreferences _preferences;
+
   Future<List<TistoryAccount>> loadAccounts() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      _preferences = await SharedPreferences.getInstance();
 
-      final raw = prefs.getString(_key);
+      final raw = _preferences.getString(_key);
       if (raw == null) return [];
 
       final List decoded = jsonDecode(raw);
@@ -49,7 +51,6 @@ class TistoryAccountStore {
 
   Future<void> saveAccounts(List<TistoryAccount> accounts) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
       final encoded = jsonEncode(
         accounts
             .map(
@@ -58,7 +59,7 @@ class TistoryAccountStore {
             .toList(),
       );
 
-      await prefs.setString(_key, encoded);
+      await _preferences.setString(_key, encoded);
     } catch (e, st) {
       debugPrint('[AccountStore] save ERROR: $e\n$st');
     }
