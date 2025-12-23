@@ -25,7 +25,7 @@ class TistoryPostingPage extends ConsumerWidget {
         final h = constraints.maxHeight;
 
         // ✅ 3행 비율 (원하면 숫자만 조정)
-        final row1 = (h * 0.18).clamp(150.0, 150.0);
+        final row1 = (h * 0.1).clamp(120.0, 120.0);
         final row2 = (h - row1) - (AppSpacing.s16 * 2);
 
         return Column(
@@ -42,12 +42,13 @@ class TistoryPostingPage extends ConsumerWidget {
                   child: AccountInlineInputBar(
                     disabled: state.isRunning,
                     isRunning: state.isRunning,
-                    initialKakaoId: state.draftKakaoId ?? "",
-                    initialBlogName: state.draftBlogName ?? "",
+                    kakaoId: state.draftKakaoId ?? "",
+                    password: state.draftPassword ?? "",
+                    blogName: state.draftBlogName ?? "",
+                    onStart: controller.start,
                     onChangedId: controller.setDraftKakaoId,
                     onChangedPw: controller.setDraftPassword,
                     onChangedBlogName: controller.setDraftBlogName,
-                    onStart: controller.start,
                   ),
                 ),
               ),

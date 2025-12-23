@@ -1,6 +1,5 @@
 import 'package:csias_desktop/features/tistory_posting/data/runner/runner_message.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/parsed_post.dart';
-import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_account.dart';
 
 abstract class TistoryPostingService {
   Stream<RunnerMessage> postStream({

@@ -1,10 +1,11 @@
+import 'dart:io';
+
 import 'package:csias_desktop/features/tistory_posting/data/html_post_parser.dart';
 import 'package:csias_desktop/features/tistory_posting/data/runner/runner_client.dart';
 import 'package:csias_desktop/features/tistory_posting/data/tistory_posting_service_playwright.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/parsed_post.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/services/tistory_posting_service.dart';
 import 'package:path/path.dart' as p;
-import 'package:csias_desktop/features/tistory_posting/data/tistory_account_store.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_account.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/upload_file_item.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -25,42 +26,20 @@ final tistoryPostingProvider =
       final posting = TistoryPostingServicePlaywright(runner: runner);
 
       final controller = TistoryPostingController(
-        accountStore: TistoryAccountStore(),
         postingService: posting,
         parser: HtmlPostParser(),
       );
-      Future.microtask(controller.loadAccounts);
       return controller;
     });
 
 class TistoryPostingController extends StateNotifier<TistoryPostingState> {
-  final TistoryAccountStore accountStore;
   final TistoryPostingService postingService;
   final HtmlPostParser parser;
 
   static const _allowedExt = ['.html', '.htm'];
 
-  TistoryPostingController({
-    required this.accountStore,
-    required this.postingService,
-    required this.parser,
-  }) : super(TistoryPostingState.initial());
-
-  /* ========================= Accounts ========================= */
-
-  Future<void> loadAccounts() async {
-    final accounts = await accountStore.loadAccounts();
-
-    state = state.copyWith(
-      accounts: accounts,
-      selectedAccountId: accounts.isNotEmpty ? accounts.first.id : null,
-    );
-  }
-
-  void selectAccountId(String? id) {
-    if (id == null) return;
-    state = state.copyWith(selectedAccountId: id);
-  }
+  TistoryPostingController({required this.postingService, required this.parser})
+    : super(TistoryPostingState.initial());
 
   /* ========================= Files ========================= */
 
@@ -142,9 +121,9 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     String password = state.draftPassword!;
     String blogName = state.draftBlogName!;
 
+    if (kakaoId.isEmpty || password.isEmpty || blogName.isEmpty) return;
     if (state.isRunning) return;
     if (state.files.isEmpty) return;
-    if (kakaoId.isEmpty || password.isEmpty || blogName.isEmpty) return;
 
     state = state.copyWith(isRunning: true);
     appendLog("포스팅 시작");
@@ -282,69 +261,6 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     state = state.copyWith(selectedFilePath: state.files[nextIdx].path);
   }
 
-  void selectPrev() {
-    if (state.files.isEmpty) return;
-
-    final cur = state.selectedFilePath;
-    final idx = cur == null ? 0 : state.files.indexWhere((f) => f.path == cur);
-
-    final prevIdx = (idx - 1).clamp(0, state.files.length - 1);
-    state = state.copyWith(selectedFilePath: state.files[prevIdx].path);
-  }
-
-  Future<void> addAccount({
-    required String kakaoId,
-    required String password,
-    required String blogName,
-  }) async {
-    final newId = DateTime.now().microsecondsSinceEpoch.toString();
-
-    final account = TistoryAccount(
-      id: newId,
-      kakaoId: kakaoId.trim(),
-      password: password.trim(),
-      blogName: blogName.trim(),
-      storageStatePath: "${kakaoId}_storageState.json",
-    );
-
-    final updated = [...state.accounts, account];
-
-    await accountStore.saveAccounts(updated);
-    state = state.copyWith(accounts: updated, selectedAccountId: newId);
-  }
-
-  Future<void> updateAccount({
-    required String id,
-    required String kakaoId,
-    required String password,
-    required String blogName,
-  }) async {
-    final updated = state.accounts.map((a) {
-      if (a.id != id) return a;
-      return TistoryAccount(
-        id: a.id,
-        kakaoId: kakaoId.trim(),
-        password: password.trim(),
-        blogName: blogName.trim(),
-        storageStatePath: a.storageStatePath,
-      );
-    }).toList();
-
-    await accountStore.saveAccounts(updated);
-    state = state.copyWith(accounts: updated);
-  }
-
-  Future<void> deleteAccount(String id) async {
-    final updated = state.accounts.where((a) => a.id != id).toList();
-
-    await accountStore.saveAccounts(updated);
-
-    final newSelected = (state.selectedAccountId == id)
-        ? (updated.isNotEmpty ? updated.first.id : null)
-        : state.selectedAccountId;
-    state = state.copyWith(accounts: updated, selectedAccountId: newSelected);
-  }
-
   void addTagsToFile(String filePath, List<String> tags) {
     final newFiles = state.files.map((f) {
       if (f.path != filePath) return f;
@@ -387,6 +303,8 @@ class TistoryPostingState {
   final String? draftPassword;
   final String? draftBlogName;
 
+  final bool pwHasKorean;
+
   const TistoryPostingState({
     required this.accounts,
     required this.selectedAccountId,
@@ -398,6 +316,7 @@ class TistoryPostingState {
     required this.draftKakaoId,
     required this.draftPassword,
     required this.draftBlogName,
+    required this.pwHasKorean,
   });
 
   factory TistoryPostingState.initial() => const TistoryPostingState(
@@ -411,6 +330,7 @@ class TistoryPostingState {
     draftKakaoId: null,
     draftPassword: null,
     draftBlogName: null,
+    pwHasKorean: false,
   );
 
   TistoryPostingState copyWith({
@@ -424,6 +344,7 @@ class TistoryPostingState {
     String? draftKakaoId,
     String? draftPassword,
     String? draftBlogName,
+    bool? pwHasKorean,
   }) {
     return TistoryPostingState(
       accounts: accounts ?? this.accounts,
@@ -436,6 +357,7 @@ class TistoryPostingState {
       draftKakaoId: draftKakaoId ?? this.draftKakaoId,
       draftPassword: draftPassword ?? this.draftPassword,
       draftBlogName: draftBlogName ?? this.draftBlogName,
+      pwHasKorean: pwHasKorean ?? this.pwHasKorean,
     );
   }
 }

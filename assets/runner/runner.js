@@ -135,54 +135,34 @@ async function postByRequest(context, { blogName, title, bodyHtml, tags, extraHe
   return { ok: res.ok(), status: res.status(), text };
 }
 
-async function routeTistoryAuth(payload) {
-  const { account, options } = payload;
-  const headless = options?.headless ?? false;
-  const executablePath = options?.chromeExecutable;
-  const storageDir = options?.storageDir || path.join(process.cwd(), "data", "auth");
-  ensureDir(storageDir);
-
-  const statePath = path.join(storageDir, `tistory_${account.id}.storageState.json`);
-
-  emit({ event: "log", message: `Auth start. statePath=${statePath}` });
-
-  // ✅ headful 권장(최초 인증)
-  const context = await chromium.launchPersistentContext("", {
-    headless,
-    executablePath,
-  });
-
-  const page = await context.newPage();
-
-  try {
-    await loginTistory(page, { id: account.id, pw: account.pw });
-
-    // ✅ storageState 저장
-    await context.storageState({ path: statePath });
-
-    emit({ event: "auth_done", statePath });
-  } finally {
-    await context.close().catch(() => {});
-  }
-}
-
 async function routeTistoryPost(payload) {
   const { account, storageStatePath, posts, options } = payload;
   const headless = options?.headless ?? true;
   const executablePath = options?.chromeExecutable;
 
-  if (!fs.existsSync(storageStatePath)) {
-    throw new Error(`storageState not found: ${storageStatePath}`);
-  }
+  var realStorageState;
+  var context;
 
   emit({ event: "log", message: `Post start. posts=${posts.length}` });
 
+  fs.access(storageStatePath, fs.constants.F_OK, (err) => {
+    if (err) {
+      realStorageState = '';
+    } else {
+      realStorageState = storageStatePath;
+    }
+  });
+
   const browser = await chromium.launch({ headless: headless, executablePath: executablePath });
-  const context = await browser.newContext({ storageState: storageStatePath });
+  context = await browser.newContext({ storageState: realStorageState });
   const page = await context.newPage();
 
   try {
     await loginTistory(page, { id: account.id, pw: account.pw });
+
+    if (realStorageState === '') {
+      await context.storageState({ path: storageStatePath });
+    }
 
     const headers = await createPostHeaders(context, page, account.blogName);
     emit({ event: "log", message: "Extracted headers" });
@@ -247,22 +227,7 @@ async function main() {
     //   }
     // }
 
-    const msg = {
-      "type": "tistory_auth",
-      "payload": {
-        "account": { "id": "01036946290", "pw": "rla156", "blogName": "korea-beauty-editor-best" },
-        "storageStatePath": '',
-        "options": {
-          "headless": false,
-          "chromeExecutable": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-        }
-      }
-    }
-
     switch (msg.type) {
-      case "tistory_auth":
-        await routeTistoryAuth(msg.payload);
-        break;
       case "tistory_post":
         await routeTistoryPost(msg.payload);
         break;
