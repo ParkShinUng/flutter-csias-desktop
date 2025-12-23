@@ -1,16 +1,15 @@
-import 'package:csias_desktop/features/tistory_posting/data/runner/runner_message.dart';
+import 'package:csias_desktop/core/runner/runner_client.dart';
+import 'package:csias_desktop/core/runner/runner_event.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/parsed_post.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/services/tistory_posting_service.dart';
 
-import 'runner/runner_client.dart';
-
 class TistoryPostingServicePlaywright implements TistoryPostingService {
-  final RunnerClient runner;
+  final RunnerClient runnerClient;
 
-  TistoryPostingServicePlaywright({required this.runner});
+  TistoryPostingServicePlaywright({required this.runnerClient});
 
   @override
-  Stream<RunnerMessage> postStream({
+  Stream<RunnerEvent> postStream({
     required String jobId,
     required String kakaoId,
     required String password,
@@ -27,7 +26,7 @@ class TistoryPostingServicePlaywright implements TistoryPostingService {
       "options": options,
     };
 
-    yield* runner.runJob(job);
+    yield* runner.runJson(job);
   }
 
   Map<String, dynamic> _buildAccount(

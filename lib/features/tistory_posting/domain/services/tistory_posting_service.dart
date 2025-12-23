@@ -1,8 +1,8 @@
-import 'package:csias_desktop/features/tistory_posting/data/runner/runner_message.dart';
+import 'package:csias_desktop/core/runner/runner_event.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/parsed_post.dart';
 
 abstract class TistoryPostingService {
-  Stream<RunnerMessage> postStream({
+  Stream<RunnerEvent> postStream({
     required String jobId,
     required String kakaoId,
     required String password,

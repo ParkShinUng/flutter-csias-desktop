@@ -1,7 +1,8 @@
 import 'dart:io';
 
+import 'package:csias_desktop/core/runner/runner_client.dart';
+import 'package:csias_desktop/core/runner/runner_event.dart';
 import 'package:csias_desktop/features/tistory_posting/data/html_post_parser.dart';
-import 'package:csias_desktop/features/tistory_posting/data/runner/runner_client.dart';
 import 'package:csias_desktop/features/tistory_posting/data/tistory_posting_service_playwright.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/parsed_post.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/services/tistory_posting_service.dart';
@@ -10,22 +11,20 @@ import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_acc
 import 'package:csias_desktop/features/tistory_posting/domain/models/upload_file_item.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
-import 'package:csias_desktop/features/tistory_posting/data/runner/runner_message.dart';
-
 /* ============================================================
  * Provider
  * ============================================================ */
 final tistoryPostingProvider =
     StateNotifierProvider<TistoryPostingController, TistoryPostingState>((ref) {
       // ✅ node 경로는 나중에 설정화면/환경탐지로 개선 가능
-      final runner = RunnerClient(
-        nodePath: '/opt/homebrew/bin/node', // <- Apple Silicon brew 기본
-        runnerJsPath: 'assets/runner/runner.js',
+      final runnerClient = RunnerClient();
+
+      final posting = TistoryPostingServicePlaywright(
+        runnerClient: runnerClient,
       );
 
-      final posting = TistoryPostingServicePlaywright(runner: runner);
-
       final controller = TistoryPostingController(
+        runnerClient: runnerClient,
         postingService: posting,
         parser: HtmlPostParser(),
       );
@@ -33,13 +32,17 @@ final tistoryPostingProvider =
     });
 
 class TistoryPostingController extends StateNotifier<TistoryPostingState> {
+  final RunnerClient runnerClient;
   final TistoryPostingService postingService;
   final HtmlPostParser parser;
 
   static const _allowedExt = ['.html', '.htm'];
 
-  TistoryPostingController({required this.postingService, required this.parser})
-    : super(TistoryPostingState.initial());
+  TistoryPostingController({
+    required this.runnerClient,
+    required this.postingService,
+    required this.parser,
+  }) : super(TistoryPostingState.initial());
 
   /* ========================= Files ========================= */
 
@@ -128,6 +131,31 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     state = state.copyWith(isRunning: true);
     appendLog("포스팅 시작");
 
+    final payload = {
+      "type": "tistory_post",
+      "payload": {
+        "account": {
+          "id": state.draftKakaoId,
+          "pw": state.draftPassword,
+          "blogName": state.draftBlogName,
+        },
+        "posts": state.files
+            .map((f) => {"htmlFilePath": f.path, "tags": f.tags})
+            .toList(),
+        "options": {"headless": false},
+      },
+    };
+
+    try {
+      await for (final ev in runnerClient.runJson(payload)) {
+        // 로그 화면에 추가
+        // controller에 addLog(ev.message ?? ev.event) 같은 걸로 누적
+        // done/exit 처리
+      }
+    } finally {
+      state = state.copyWith(isRunning: false);
+    }
+
     // 순차 실행(안정성 우선)
     for (final file in state.files) {
       if (!state.isRunning) break; // stop 호출 대비
@@ -204,9 +232,9 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
   void _handleRunnerMessage(
     String filePath,
     String fileName,
-    RunnerMessage msg,
+    RunnerEvent event,
   ) {
-    if (msg.status == 'log') {
+    if (msg.message == 'log') {
       appendLog("[${fileName}] ${msg.message ?? ''}".trim());
       return;
     }
