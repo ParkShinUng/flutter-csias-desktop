@@ -265,7 +265,12 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
       return f.copyWith(tags: tags);
     }).toList();
 
-    state = state.copyWith(files: newFiles);
+    // 태그 수정 시 중복 표시 자동 해제
+    if (state.duplicateTagFilePaths.isNotEmpty) {
+      state = state.copyWith(files: newFiles, duplicateTagFilePaths: {});
+    } else {
+      state = state.copyWith(files: newFiles);
+    }
   }
 
   void setDraftKakaoId(String v) {
