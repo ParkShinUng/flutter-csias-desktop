@@ -110,22 +110,7 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
       final paths = BundledNodeResolver.resolve();
       final nodePath = paths.nodePath;
       final runnerJsPath = paths.runnerJsPath;
-
-      // const msg = {
-      //   "type": "tistory_post",
-      //   "payload": {
-      //     "account": { "id": "01036946290", "pw": "rla156", "blogName": "korea-beauty-editor-best" },
-      //     "storageStatePath": './data/auth/tistory_01036946290.storageState.json',
-      //     "posts": [
-      //       { "htmlFilePath": "/abs/path/a.html", "tags": ["tag1", "tag2"] },
-      //       { "htmlFilePath": "/abs/path/b.html", "tags": ["tag3", "tag4"] }
-      //     ],
-      //     "options": {
-      //       "headless": false,
-      //       "chromeExecutable": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-      //     }
-      //   }
-      // }
+      final storageStateDirPath = paths.storageStateDir;
 
       final payload = {
         "type": "tistory_post",
@@ -135,9 +120,10 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
             "pw": state.draftPassword,
             "blogName": state.draftBlogName,
           },
-          "storageStatePath": "tistory_${state.draftKakaoId}.storageState.json",
+          "storageStatePath":
+              "$storageStateDirPath/tistory_${state.draftKakaoId}.storageState.json",
           "posts": state.files
-              .map((f) => {"htmlFilePath": f.path, "tags": f.tags})
+              .map((f) => ({"htmlFilePath": f.path, "tags": f.tags}))
               .toList(),
           "options": {
             "headless": false,
@@ -154,23 +140,23 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
         runInShell: false,
       );
 
-      showInfo("포스팅 시작");
-
       // stdin에 JSON 1회 전송 후 닫기(중요: 안 닫으면 node가 stdin 기다리며 안 끝날 수 있음)
       _runnerProc!.stdin.writeln(jsonEncode(payload));
       await _runnerProc!.stdin.flush();
       await _runnerProc!.stdin.close();
 
       // stdout 로그 스트림 처리(JSON line)
-      var postingDoneFlag = false;
+      // var postingDoneFlag = false;
       _runnerProc!.stdout
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .listen((line) {
-            if (!postingDoneFlag) {
+            if (line == "done") {
               showInfo("Complete posting automation!");
-              postingDoneFlag = true;
             }
+            // if (!postingDoneFlag) {
+            //   postingDoneFlag = true;
+            // }
           });
 
       _runnerProc!.stderr

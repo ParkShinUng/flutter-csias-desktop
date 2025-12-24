@@ -11,10 +11,8 @@ final tistoryPostingProvider =
       final bundled = BundledNodeResolver.resolve(); // 아래 파일에서 구현(예시)
 
       final runnerClient = RunnerClient(
-        nodePath: bundled
-            .nodePath, // 예: .../YourApp.app/Contents/Resources/bin/node-darwin-x64-darwin-arm64
-        runnerJsPath: bundled
-            .runnerJsPath, // 예: .../YourApp.app/Contents/Resources/assets/runner/runner.js
+        nodePath: bundled.nodePath,
+        runnerJsPath: bundled.runnerJsPath,
         workingDir: bundled.workingDir,
       );
 

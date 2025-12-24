@@ -4,7 +4,6 @@ const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright-core");
 const cheerio = require("cheerio");
-const http = require("http");
 
 function emit(obj) {
   process.stdout.write(JSON.stringify(obj) + "\n");
@@ -35,7 +34,7 @@ function parseHtmlToTitleAndBody(htmlString) {
   return { title, bodyHtml: (bodyHtml || "").trim() };
 }
 
-async function loginTistory(page, { id, pw }) {
+async function loginTistory(context, page, { id, pw, storageStatePath }) {
   emit({ event: "log", message: "Go to Tistory login" });
 
   await page.goto("https://www.tistory.com/auth/login", { waitUntil: "domcontentloaded" });
@@ -47,57 +46,46 @@ async function loginTistory(page, { id, pw }) {
     await page.fill('input[name="loginId"]', id);
     await page.fill('input[name="password"]', pw);
     await page.click('button[type="submit"]');
-    
+
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(1000);
 
     while (!page.url().includes("www.tistory.com/")) {
       await page.waitForTimeout(1000);
     }
+
+    // storageState 저장 전 디렉토리 생성
+    const dir = path.dirname(storageStatePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    await context.storageState({ path: storageStatePath });
   }
+
+  await page.waitForTimeout(1000);
 
   emit({ event: "log", message: "Login step done (verify selectors)" });
 }
 
 async function createPostHeaders(context, page, blogName) {
-  const cookies = await context.cookies();
   const userAgent = await page.evaluate(() => navigator.userAgent);
-  const userAgentData = await page.evaluate(
-    () => navigator.userAgentData.getHighEntropyValues(["fullVersionList"])
-  );
-  const chromeVersion = userAgentData.brands.find(item => item.brand === "Google Chrome").version;
-  const chromiumVersion = userAgentData.brands.find(item => item.brand === "Chromium").version;
-  const notABrandVersion = userAgentData.brands.find(item => item.brand === "Not A(Brand").version;
+  const fullDomain = `${blogName}.tistory.com`;
 
-  emit({ event: "log", message: 'Cookies loaded: ${cookies.length}' });
-
-  const t = cookies.find(c => c.name === "__T_").value;
-  const t_secure = cookies.find(c => c.name === "__T_SECURE").value;
-  const is_tc = cookies.find(c => c.name === "IS_TC").value;
-  const tsession = cookies.find(c => c.name === "TSSESSION").value;
-  const t_ano = cookies.findLast(c => c.name === "_T_ANO").value;
-
-  const cookieString = `__T_=${t}; __T_SECURE=${t_secure}; IS_TC=${is_tc}; TSSESSION=${tsession}; _T_ANO=${t_ano}`;
-  const secChUaString = `"\"Google Chrome\";v=\"${chromeVersion}\", \"Chromium\";v=\"${chromiumVersion}\", \"Not A(Brand\";v=\"${notABrandVersion}\"`;
-  
+  // Playwright context.request는 쿠키를 자동으로 포함하므로 Cookie 헤더 불필요
+  // Host 헤더도 URL에서 자동 설정되므로 제거 (수동 설정 시 404 발생)
   const headers = {
-      "Host": blogName,
-      "Cookie": cookieString,
-      "Sec-Ch-Ua": secChUaString,
       "Accept": "application/json, text/plain, */*",
-      "Sec-Ch-Ua-Platform": "\"macOS\"",
       "Accept-Language": "ko-KR",
-      "Sec-Ch-Ua-Mobile": "?0",
       "User-Agent": userAgent,
       "Content-Type": "application/json;charset=UTF-8",
-      "Origin": "https://"+blogName,
+      "Origin": `https://${fullDomain}`,
+      "Referer": `https://${fullDomain}/manage/newpost/?type=post&returnURL=%2Fmanage%2Fposts%2F`,
       "Sec-Fetch-Site": "same-origin",
       "Sec-Fetch-Mode": "cors",
       "Sec-Fetch-Dest": "empty",
-      "Referer": "https://"+blogName+"/manage/newpost/?type=post&returnURL=%2Fmanage%2Fposts%2F",
-      "Accept-Encoding": "gzip, deflate, br",
-      "Priority": "u=1, i"
-  }
+  };
+
+  emit({ event: "log", message: `Headers created for ${fullDomain}` });
 
   return headers;
 }
@@ -107,9 +95,9 @@ async function postByRequest(context, { blogName, title, bodyHtml, tags, extraHe
     "id": "0",
     "title": title,
     "content": bodyHtml,
-    "slogan": "dd",
+    "slogan": title,
     "visibility": 0,            // 0: 비공개, 20: 공개
-    "category": 1157903,
+    "category": 0,
     "tag": tags.join(","),
     "published": 1,
     "password": "",
@@ -117,7 +105,6 @@ async function postByRequest(context, { blogName, title, bodyHtml, tags, extraHe
     "daumLike": "401",
     "cclCommercial": 0,
     "cclDerive": 0,
-    "thumbnail": null,
     "type": "post",
     "attachments": [],
     "recaptchaValue": "",
@@ -127,7 +114,11 @@ async function postByRequest(context, { blogName, title, bodyHtml, tags, extraHe
   const postUrl = `https://${blogName}.tistory.com/manage/post.json`;
 
   const res = await context.request.post(postUrl, {
-    headers: extraHeaders,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "accept": "application/json, text/plain, */*",
+      ...extraHeaders,
+    },
     data: payload,
   });
 
@@ -148,13 +139,14 @@ async function routeTistoryPost(payload) {
   const browser = await chromium.launch({ headless: headless, executablePath: executablePath });
   const context = await browser.newContext(realStorageState ? { storageState: realStorageState } : {});
   const page = await context.newPage();
+  await page.waitForLoadState("domcontentloaded");
 
   try {
-    await loginTistory(page, { id: account.id, pw: account.pw });
-
-    if (realStorageState === undefined) {
-      await context.storageState({ path: storageStatePath });
-    }
+    await loginTistory(context, page, {
+      id: account.id,
+      pw: account.pw,
+      storageStatePath: storageStatePath,
+    });
 
     const headers = await createPostHeaders(context, page, account.blogName);
     emit({ event: "log", message: "Extracted headers" });
@@ -181,14 +173,6 @@ async function routeTistoryPost(payload) {
         tags: post.tags || [],
         extraHeaders: headers,
       });
-
-      if (result.ok) {
-        success++;
-        emit({ event: "posted", title });
-      } else {
-        failed++;
-        emit({ event: "post_failed", status: result.status, body: result.text.slice(0, 200) });
-      }
     }
 
     emit({ event: "done", success, failed });
