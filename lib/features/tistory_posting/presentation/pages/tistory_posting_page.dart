@@ -130,41 +130,14 @@ class TistoryPostingPage extends ConsumerWidget {
                                         ),
                                         const SizedBox(height: AppSpacing.s12),
 
-                                        // 전역 태그 chip
-                                        if (state.tags.isNotEmpty) ...[
-                                          Wrap(
-                                            spacing: 8,
-                                            runSpacing: 8,
-                                            children: state.tags
-                                                .map(
-                                                  (t) => InputChip(
-                                                    label: Text(t),
-                                                    onDeleted: state.isRunning
-                                                        ? null
-                                                        : () => controller
-                                                              .removeTag(t),
-                                                  ),
-                                                )
-                                                .toList(),
-                                          ),
-                                          const SizedBox(
-                                            height: AppSpacing.s12,
-                                          ),
-                                        ],
-
-                                        // 파일 리스트(파일별 태그 + 선택 하이라이트 + ↑↓ 이동)
+                                        // 파일 리스트(파일별 태그)
                                         Expanded(
                                           child: FileTablePanel(
                                             files: state.files,
                                             disabled: state.isRunning,
                                             duplicateTagFilePaths: state.duplicateTagFilePaths,
                                             onSubmitTags: (filePath, tags) {
-                                              // ✅ 컨트롤러에 "파일별 태그 추가" 메서드 연결
-                                              // 아래 메서드명이 너 프로젝트에 없으면 Step 3에서 추가해줄게.
-                                              controller.addTagsToFile(
-                                                filePath,
-                                                tags,
-                                              );
+                                              controller.addTagsToFile(filePath, tags);
                                             },
                                             onRemoveFile: (filePath) {
                                               controller.removeFile(filePath);

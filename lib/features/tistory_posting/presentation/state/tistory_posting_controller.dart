@@ -1,27 +1,19 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:csias_desktop/core/runner/bundled_node_resolver.dart';
-import 'package:csias_desktop/core/runner/runner_client.dart';
 import 'package:csias_desktop/core/ui/ui_message.dart';
-import 'package:csias_desktop/features/tistory_posting/domain/services/tistory_posting_service.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_state.dart';
 import 'package:path/path.dart' as p;
 import 'package:csias_desktop/features/tistory_posting/domain/models/upload_file_item.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
 class TistoryPostingController extends StateNotifier<TistoryPostingState> {
-  final RunnerClient runnerClient;
-  final TistoryPostingService postingService;
   Process? _runnerProc;
 
   static const _allowedExt = ['.html', '.htm'];
 
-  TistoryPostingController({
-    required this.runnerClient,
-    required this.postingService,
-  }) : super(TistoryPostingState.initial());
+  TistoryPostingController() : super(TistoryPostingState.initial());
 
   /* ========================= Files ========================= */
 
@@ -70,24 +62,6 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     state = state.copyWith(files: [], selectedFilePath: null);
   }
 
-  /* ========================= Tags ========================= */
-
-  void addTag(String tag) {
-    final t = tag.trim();
-    if (t.isEmpty || state.tags.contains(t)) return;
-    state = state.copyWith(tags: [...state.tags, t]);
-  }
-
-  void removeTag(String tag) {
-    state = state.copyWith(tags: state.tags.where((t) => t != tag).toList());
-  }
-
-  /* ========================= Logs ========================= */
-
-  void appendLog(String log) {
-    state = state.copyWith(logs: [...state.logs, log]);
-  }
-
   /* ========================= Run ========================= */
 
   Future<void> start() async {
@@ -110,7 +84,8 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
       state = state.copyWith(duplicateTagFilePaths: duplicatePaths);
       showError(
         "중복된 태그가 있습니다",
-        detail: "각 파일의 태그는 서로 중복되지 않아야 합니다.\n빨간색으로 표시된 ${duplicatePaths.length}개 파일을 확인해주세요.",
+        detail:
+            "각 파일의 태그는 서로 중복되지 않아야 합니다.\n빨간색으로 표시된 ${duplicatePaths.length}개 파일을 확인해주세요.",
       );
       return;
     }
@@ -158,7 +133,6 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
       await _runnerProc!.stdin.close();
 
       // stdout 로그 스트림 처리(JSON line)
-      // var postingDoneFlag = false;
       _runnerProc!.stdout
           .transform(utf8.decoder)
           .transform(const LineSplitter())
@@ -166,10 +140,6 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
             if (line.contains("All posts processed.")) {
               showInfo("Complete posting automation!");
             }
-            // if (!postingDoneFlag) {
-            //   postingDoneFlag = true;
-            // showInfo("Complete posting automation!");
-            // }
           });
 
       _runnerProc!.stderr
@@ -179,18 +149,14 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
             showError("Posting runner Error");
           });
 
-      final exitCode = await _runnerProc!.exitCode;
+      await _runnerProc!.exitCode;
       _runnerProc = null;
 
-      state = state.copyWith(isRunning: false, lastExitCode: exitCode);
+      state = state.copyWith(isRunning: false);
     } catch (e) {
       state = state.copyWith(isRunning: false);
       showError("Posting Start Error", detail: "\n$e");
     }
-  }
-
-  void stop() {
-    state = state.copyWith(isRunning: false);
   }
 
   /* ========================= Helpers ========================= */
@@ -215,47 +181,6 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     }
 
     return duplicatePaths;
-  }
-
-  /// 중복 태그 표시 초기화
-  void clearDuplicateTagHighlight() {
-    state = state.copyWith(duplicateTagFilePaths: {});
-  }
-
-  void addFileTag(String filePath, String tag) {
-    final t = tag.trim();
-    if (t.isEmpty) return;
-
-    state = state.copyWith(
-      files: state.files.map((f) {
-        if (f.path != filePath) return f;
-        if (f.tags.contains(t)) return f;
-        return f.copyWith(tags: [...f.tags, t]);
-      }).toList(),
-    );
-  }
-
-  void removeFileTag(String filePath, String tag) {
-    state = state.copyWith(
-      files: state.files.map((f) {
-        if (f.path != filePath) return f;
-        return f.copyWith(tags: f.tags.where((x) => x != tag).toList());
-      }).toList(),
-    );
-  }
-
-  void selectFile(String filePath) {
-    state = state.copyWith(selectedFilePath: filePath);
-  }
-
-  void selectNext() {
-    if (state.files.isEmpty) return;
-
-    final cur = state.selectedFilePath;
-    final idx = cur == null ? -1 : state.files.indexWhere((f) => f.path == cur);
-
-    final nextIdx = (idx + 1).clamp(0, state.files.length - 1);
-    state = state.copyWith(selectedFilePath: state.files[nextIdx].path);
   }
 
   void addTagsToFile(String filePath, List<String> tags) {
