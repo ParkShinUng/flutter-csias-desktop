@@ -5,6 +5,8 @@ class ChatGPTQueriesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(child: Text('ChatGPT Queries 추출 (Step 3/4에서 구현)'));
+    return const Center(
+      child: Text('ChatGPT Queries Extractor Automation Page. \nComming Soon'),
+    );
   }
 }

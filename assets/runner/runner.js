@@ -96,7 +96,7 @@ async function postByRequest(context, { blogName, title, bodyHtml, tags, extraHe
     "title": title,
     "content": bodyHtml,
     "slogan": title,
-    "visibility": 0,            // 0: 비공개, 20: 공개
+    "visibility": 20,            // 0: 비공개, 20: 공개
     "category": 0,
     "tag": tags.join(","),
     "published": 1,
