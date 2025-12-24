@@ -4,7 +4,6 @@ import 'dart:io';
 
 import 'package:csias_desktop/core/runner/bundled_node_resolver.dart';
 import 'package:csias_desktop/core/runner/runner_client.dart';
-import 'package:csias_desktop/core/ui/app_message_dialog.dart';
 import 'package:csias_desktop/core/ui/ui_message.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/services/tistory_posting_service.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_state.dart';
@@ -69,14 +68,6 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
 
   void clearFiles() {
     state = state.copyWith(files: [], selectedFilePath: null);
-  }
-
-  void _updateFileStatus(String path, UploadStatus status) {
-    state = state.copyWith(
-      files: state.files
-          .map((f) => f.path == path ? f.copyWith(status: status) : f)
-          .toList(),
-    );
   }
 
   /* ========================= Tags ========================= */
@@ -201,14 +192,6 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
 
   /* ========================= Helpers ========================= */
 
-  String _jobIdFor(String filePath) =>
-      "${DateTime.now().millisecondsSinceEpoch}_${filePath.hashCode}";
-
-  UploadStatus _currentStatus(String filePath) {
-    final f = state.files.where((x) => x.path == filePath).firstOrNull;
-    return f?.status ?? UploadStatus.pending;
-  }
-
   void addFileTag(String filePath, String tag) {
     final t = tag.trim();
     if (t.isEmpty) return;
@@ -301,10 +284,4 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     disposeRunner();
     super.dispose();
   }
-}
-
-/* ========================= Iterable helper ========================= */
-
-extension _FirstOrNull<T> on Iterable<T> {
-  T? get firstOrNull => isEmpty ? null : first;
 }
