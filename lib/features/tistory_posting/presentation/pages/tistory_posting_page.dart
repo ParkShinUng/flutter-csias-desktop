@@ -1,3 +1,6 @@
+import 'package:csias_desktop/core/ui/app_message_dialog.dart';
+import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_provider.dart';
+import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_state.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/widgets/account_inline_input_bar.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/widgets/drop_zone.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/widgets/file_table_panel.dart';
@@ -6,7 +9,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:csias_desktop/core/widgets/app_card.dart';
 import 'package:csias_desktop/core/theme/app_spacing.dart';
-import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_controller.dart';
 
 class TistoryPostingPage extends ConsumerWidget {
   const TistoryPostingPage({super.key});
@@ -16,9 +18,21 @@ class TistoryPostingPage extends ConsumerWidget {
     final state = ref.watch(tistoryPostingProvider);
     final controller = ref.read(tistoryPostingProvider.notifier);
 
-    // ✅ 파일이 없거나 선택이 없으면 DropZone 모드
+    // DropZone Mode flag
     final hasSelected =
         state.files.isNotEmpty && state.selectedFilePath != null;
+
+    // Message Dialog
+    ref.listen<TistoryPostingState>(tistoryPostingProvider, (prev, next) async {
+      final msg = next.uiMessage;
+      if (msg == null) return;
+
+      // 중복 호출 방지: 먼저 clear 한 다음 다이얼로그
+      ref.read(tistoryPostingProvider.notifier).clearUiMessage();
+
+      if (!context.mounted) return;
+      await showAppMessageDialog(context, msg);
+    });
 
     return LayoutBuilder(
       builder: (context, constraints) {

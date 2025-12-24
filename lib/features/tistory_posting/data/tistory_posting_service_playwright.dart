@@ -1,5 +1,4 @@
 import 'package:csias_desktop/core/runner/runner_client.dart';
-import 'package:csias_desktop/core/runner/runner_event.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/parsed_post.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/services/tistory_posting_service.dart';
 
@@ -26,7 +25,7 @@ class TistoryPostingServicePlaywright implements TistoryPostingService {
       "options": options,
     };
 
-    yield* runner.runJson(job);
+    yield* runnerClient.runJson(job);
   }
 
   Map<String, dynamic> _buildAccount(

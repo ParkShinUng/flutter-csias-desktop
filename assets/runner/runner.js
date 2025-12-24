@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright");
-// const cheerio = require("cheerio");
+const cheerio = require("cheerio");
 const http = require("http");
 
 function emit(obj) {
@@ -140,21 +140,13 @@ async function routeTistoryPost(payload) {
   const headless = options?.headless ?? true;
   const executablePath = options?.chromeExecutable;
 
-  var realStorageState;
-  var context;
-
   emit({ event: "log", message: `Post start. posts=${posts.length}` });
 
-  fs.access(storageStatePath, fs.constants.F_OK, (err) => {
-    if (err) {
-      realStorageState = '';
-    } else {
-      realStorageState = storageStatePath;
-    }
-  });
+  // 동기 방식으로 파일 존재 여부 확인
+  const realStorageState = fs.existsSync(storageStatePath) ? storageStatePath : undefined;
 
   const browser = await chromium.launch({ headless: headless, executablePath: executablePath });
-  context = await browser.newContext({ storageState: realStorageState });
+  const context = await browser.newContext(realStorageState ? { storageState: realStorageState } : {});
   const page = await context.newPage();
 
   try {
@@ -208,24 +200,8 @@ async function routeTistoryPost(payload) {
 
 async function main() {
   try {
-    // const input = await readStdinOnce();
-    // const msg = JSON.parse(input);
-
-    // const msg = {
-    //   "type": "tistory_post",
-    //   "payload": {
-    //     "account": { "id": "01036946290", "pw": "rla156", "blogName": "korea-beauty-editor-best" },
-    //     "storageStatePath": './data/auth/tistory_01036946290.storageState.json',
-    //     "posts": [
-    //       { "htmlFilePath": "/abs/path/a.html", "tags": ["tag1", "tag2"] },
-    //       { "htmlFilePath": "/abs/path/b.html", "tags": ["tag3", "tag4"] }
-    //     ],
-    //     "options": {
-    //       "headless": false,
-    //       "chromeExecutable": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-    //     }
-    //   }
-    // }
+    const input = await readStdinOnce();
+    const msg = JSON.parse(input);
 
     switch (msg.type) {
       case "tistory_post":
@@ -243,3 +219,5 @@ async function main() {
     process.stdout.end();
   }
 }
+
+main();

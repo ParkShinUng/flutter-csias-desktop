@@ -1,47 +1,27 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:csias_desktop/core/runner/bundled_node_resolver.dart';
 import 'package:csias_desktop/core/runner/runner_client.dart';
-import 'package:csias_desktop/core/runner/runner_event.dart';
-import 'package:csias_desktop/features/tistory_posting/data/html_post_parser.dart';
-import 'package:csias_desktop/features/tistory_posting/data/tistory_posting_service_playwright.dart';
-import 'package:csias_desktop/features/tistory_posting/domain/models/parsed_post.dart';
+import 'package:csias_desktop/core/ui/app_message_dialog.dart';
+import 'package:csias_desktop/core/ui/ui_message.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/services/tistory_posting_service.dart';
+import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_state.dart';
 import 'package:path/path.dart' as p;
-import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_account.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/upload_file_item.dart';
 import 'package:flutter_riverpod/legacy.dart';
-
-/* ============================================================
- * Provider
- * ============================================================ */
-final tistoryPostingProvider =
-    StateNotifierProvider<TistoryPostingController, TistoryPostingState>((ref) {
-      // ✅ node 경로는 나중에 설정화면/환경탐지로 개선 가능
-      final runnerClient = RunnerClient();
-
-      final posting = TistoryPostingServicePlaywright(
-        runnerClient: runnerClient,
-      );
-
-      final controller = TistoryPostingController(
-        runnerClient: runnerClient,
-        postingService: posting,
-        parser: HtmlPostParser(),
-      );
-      return controller;
-    });
 
 class TistoryPostingController extends StateNotifier<TistoryPostingState> {
   final RunnerClient runnerClient;
   final TistoryPostingService postingService;
-  final HtmlPostParser parser;
+  Process? _runnerProc;
 
   static const _allowedExt = ['.html', '.htm'];
 
   TistoryPostingController({
     required this.runnerClient,
     required this.postingService,
-    required this.parser,
   }) : super(TistoryPostingState.initial());
 
   /* ========================= Files ========================= */
@@ -120,103 +100,103 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
   /* ========================= Run ========================= */
 
   Future<void> start() async {
-    String kakaoId = state.draftKakaoId!;
-    String password = state.draftPassword!;
-    String blogName = state.draftBlogName!;
-
-    if (kakaoId.isEmpty || password.isEmpty || blogName.isEmpty) return;
     if (state.isRunning) return;
-    if (state.files.isEmpty) return;
+
+    final draftId = (state.draftKakaoId ?? "").trim();
+    final draftPw = (state.draftPassword ?? "").trim();
+    final draftBlogName = (state.draftBlogName ?? "").trim();
+
+    if (draftId.isEmpty || draftPw.isEmpty || draftBlogName.isEmpty) return;
+
+    if (state.files.isEmpty) {
+      showError("업로드된 HTML 파일이 없습니다.");
+      return;
+    }
 
     state = state.copyWith(isRunning: true);
-    appendLog("포스팅 시작");
-
-    final payload = {
-      "type": "tistory_post",
-      "payload": {
-        "account": {
-          "id": state.draftKakaoId,
-          "pw": state.draftPassword,
-          "blogName": state.draftBlogName,
-        },
-        "posts": state.files
-            .map((f) => {"htmlFilePath": f.path, "tags": f.tags})
-            .toList(),
-        "options": {"headless": false},
-      },
-    };
 
     try {
-      await for (final ev in runnerClient.runJson(payload)) {
-        // 로그 화면에 추가
-        // controller에 addLog(ev.message ?? ev.event) 같은 걸로 누적
-        // done/exit 처리
-      }
-    } finally {
+      final paths = BundledNodeResolver.resolve();
+      final nodePath = paths.nodePath;
+      final runnerJsPath = paths.runnerJsPath;
+
+      // const msg = {
+      //   "type": "tistory_post",
+      //   "payload": {
+      //     "account": { "id": "01036946290", "pw": "rla156", "blogName": "korea-beauty-editor-best" },
+      //     "storageStatePath": './data/auth/tistory_01036946290.storageState.json',
+      //     "posts": [
+      //       { "htmlFilePath": "/abs/path/a.html", "tags": ["tag1", "tag2"] },
+      //       { "htmlFilePath": "/abs/path/b.html", "tags": ["tag3", "tag4"] }
+      //     ],
+      //     "options": {
+      //       "headless": false,
+      //       "chromeExecutable": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+      //     }
+      //   }
+      // }
+
+      final payload = {
+        "type": "tistory_post",
+        "payload": {
+          "account": {
+            "id": state.draftKakaoId,
+            "pw": state.draftPassword,
+            "blogName": state.draftBlogName,
+          },
+          "storageStatePath": "tistory_${state.draftKakaoId}.storageState.json",
+          "posts": state.files
+              .map((f) => {"htmlFilePath": f.path, "tags": f.tags})
+              .toList(),
+          "options": {
+            "headless": false,
+            "chromeExecutable":
+                "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+          },
+        },
+      };
+
+      _runnerProc = await Process.start(
+        nodePath,
+        [runnerJsPath],
+        workingDirectory: Directory.current.path,
+        runInShell: false,
+      );
+
+      showInfo("포스팅 시작");
+
+      // stdin에 JSON 1회 전송 후 닫기(중요: 안 닫으면 node가 stdin 기다리며 안 끝날 수 있음)
+      _runnerProc!.stdin.writeln(jsonEncode(payload));
+      await _runnerProc!.stdin.flush();
+      await _runnerProc!.stdin.close();
+
+      // stdout 로그 스트림 처리(JSON line)
+      _runnerProc!.stdout
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .listen((line) {
+            showInfo("Complete posting automation!");
+          });
+
+      _runnerProc!.stderr
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .listen((line) {
+            showError("Posting runner Error");
+          });
+
+      final exitCode = await _runnerProc!.exitCode;
+      _runnerProc = null;
+
+      state = state.copyWith(isRunning: false, lastExitCode: exitCode);
+    } catch (e) {
       state = state.copyWith(isRunning: false);
+      showError("Posting Start Error", detail: "\n$e");
     }
-
-    // 순차 실행(안정성 우선)
-    for (final file in state.files) {
-      if (!state.isRunning) break; // stop 호출 대비
-
-      final jobId = _jobIdFor(file.path);
-      try {
-        _updateFileStatus(file.path, UploadStatus.running);
-        appendLog("파싱 시작: ${file.name}");
-
-        final ParsedPost parsed = parser.parseFile(file.path);
-
-        appendLog("Runner 실행: ${parsed.title}");
-
-        final mergedTags = {...state.tags, ...file.tags}.toList();
-
-        final options = {"headless": false, "delayMs": 400};
-
-        // Runner 스트림 소비
-        await for (final msg in postingService.postStream(
-          jobId: jobId,
-          kakaoId: kakaoId,
-          password: password,
-          blogName: blogName,
-          post: parsed,
-          tags: mergedTags,
-          options: options,
-        )) {
-          _handleRunnerMessage(file.path, file.name, msg);
-        }
-
-        // 성공 로그가 이미 왔더라도, 안전하게 success로 마감
-        if (_currentStatus(file.path) != UploadStatus.failed) {
-          _updateFileStatus(file.path, UploadStatus.success);
-          appendLog("완료: ${file.name}");
-        }
-      } catch (e) {
-        _updateFileStatus(file.path, UploadStatus.failed);
-        appendLog("실패: ${file.name} - $e");
-      }
-    }
-
-    state = state.copyWith(isRunning: false);
-    appendLog("전체 작업 종료");
   }
 
   void stop() {
     state = state.copyWith(isRunning: false);
-    appendLog("작업 중지 요청");
-  }
-
-  Future<void> retryFailed() async {
-    final failed = state.files
-        .where((f) => f.status == UploadStatus.failed)
-        .toList();
-    if (failed.isEmpty) return;
-
-    // failed만 pending으로 되돌리고 start 재호출
-    for (final f in failed) {
-      _updateFileStatus(f.path, UploadStatus.pending);
-    }
-    await start();
   }
 
   /* ========================= Helpers ========================= */
@@ -227,30 +207,6 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
   UploadStatus _currentStatus(String filePath) {
     final f = state.files.where((x) => x.path == filePath).firstOrNull;
     return f?.status ?? UploadStatus.pending;
-  }
-
-  void _handleRunnerMessage(
-    String filePath,
-    String fileName,
-    RunnerEvent event,
-  ) {
-    if (msg.message == 'log') {
-      appendLog("[${fileName}] ${msg.message ?? ''}".trim());
-      return;
-    }
-
-    if (msg.status == 'failed') {
-      _updateFileStatus(filePath, UploadStatus.failed);
-      appendLog("[${fileName}] 실패: ${msg.error ?? 'unknown'}");
-      return;
-    }
-
-    if (msg.status == 'success') {
-      // success는 start()에서 최종 마감도 하지만, 여기서도 반영 가능
-      _updateFileStatus(filePath, UploadStatus.success);
-      appendLog("[${fileName}] 성공");
-      return;
-    }
   }
 
   void addFileTag(String filePath, String tag) {
@@ -311,82 +267,39 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
   void setDraftBlogName(String v) {
     state = state.copyWith(draftBlogName: v);
   }
-}
 
-/* ========================= State ========================= */
+  void showError(String message, {String? detail}) {
+    state = state.copyWith(uiMessage: UiMessage.error(message, detail: detail));
+  }
 
-class TistoryPostingState {
-  final List<TistoryAccount> accounts;
-  final String? selectedAccountId;
+  void showInfo(String message) {
+    state = state.copyWith(uiMessage: UiMessage.info(message));
+  }
 
-  final List<UploadFileItem> files;
-  final List<String> tags;
-  final List<String> logs;
+  void clearUiMessage() {
+    state = state.copyWith(clearUiMessage: true);
+  }
 
-  final bool isRunning;
+  Future<void> disposeRunner() async {
+    final p = _runnerProc;
+    if (p == null) return;
 
-  final String? selectedFilePath;
+    // 부드럽게 종료 시도
+    p.kill(ProcessSignal.sigterm);
 
-  final String? draftKakaoId;
-  final String? draftPassword;
-  final String? draftBlogName;
+    // 일정 시간 후에도 안 죽으면 강제
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (_runnerProc != null) {
+      _runnerProc!.kill(ProcessSignal.sigkill);
+    }
 
-  final bool pwHasKorean;
+    _runnerProc = null;
+  }
 
-  const TistoryPostingState({
-    required this.accounts,
-    required this.selectedAccountId,
-    required this.files,
-    required this.tags,
-    required this.logs,
-    required this.isRunning,
-    required this.selectedFilePath,
-    required this.draftKakaoId,
-    required this.draftPassword,
-    required this.draftBlogName,
-    required this.pwHasKorean,
-  });
-
-  factory TistoryPostingState.initial() => const TistoryPostingState(
-    accounts: [],
-    selectedAccountId: null,
-    files: [],
-    tags: [],
-    logs: [],
-    isRunning: false,
-    selectedFilePath: null,
-    draftKakaoId: null,
-    draftPassword: null,
-    draftBlogName: null,
-    pwHasKorean: false,
-  );
-
-  TistoryPostingState copyWith({
-    List<TistoryAccount>? accounts,
-    String? selectedAccountId,
-    List<UploadFileItem>? files,
-    List<String>? tags,
-    List<String>? logs,
-    bool? isRunning,
-    String? selectedFilePath,
-    String? draftKakaoId,
-    String? draftPassword,
-    String? draftBlogName,
-    bool? pwHasKorean,
-  }) {
-    return TistoryPostingState(
-      accounts: accounts ?? this.accounts,
-      selectedAccountId: selectedAccountId ?? this.selectedAccountId,
-      files: files ?? this.files,
-      tags: tags ?? this.tags,
-      logs: logs ?? this.logs,
-      isRunning: isRunning ?? this.isRunning,
-      selectedFilePath: selectedFilePath ?? this.selectedFilePath,
-      draftKakaoId: draftKakaoId ?? this.draftKakaoId,
-      draftPassword: draftPassword ?? this.draftPassword,
-      draftBlogName: draftBlogName ?? this.draftBlogName,
-      pwHasKorean: pwHasKorean ?? this.pwHasKorean,
-    );
+  @override
+  void dispose() {
+    disposeRunner();
+    super.dispose();
   }
 }
 

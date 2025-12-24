@@ -1,4 +1,4 @@
-import 'package:csias_desktop/core/runner/runner_event.dart';
+import 'package:csias_desktop/core/runner/runner_client.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/parsed_post.dart';
 
 abstract class TistoryPostingService {
