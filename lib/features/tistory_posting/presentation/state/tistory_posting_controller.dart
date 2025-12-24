@@ -104,7 +104,19 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
       return;
     }
 
-    state = state.copyWith(isRunning: true);
+    // 태그 중복 검사
+    final duplicatePaths = _findDuplicateTagFiles();
+    if (duplicatePaths.isNotEmpty) {
+      state = state.copyWith(duplicateTagFilePaths: duplicatePaths);
+      showError(
+        "중복된 태그가 있습니다",
+        detail: "각 파일의 태그는 서로 중복되지 않아야 합니다.\n빨간색으로 표시된 ${duplicatePaths.length}개 파일을 확인해주세요.",
+      );
+      return;
+    }
+
+    // 중복 없으면 초기화
+    state = state.copyWith(duplicateTagFilePaths: {}, isRunning: true);
 
     try {
       final paths = BundledNodeResolver.resolve();
@@ -151,11 +163,12 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .listen((line) {
-            if (line == "done") {
+            if (line.contains("All posts processed.")) {
               showInfo("Complete posting automation!");
             }
             // if (!postingDoneFlag) {
             //   postingDoneFlag = true;
+            // showInfo("Complete posting automation!");
             // }
           });
 
@@ -181,6 +194,33 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
   }
 
   /* ========================= Helpers ========================= */
+
+  /// 파일 간 태그 중복을 검사하고, 중복된 태그가 있는 파일 경로들을 반환
+  Set<String> _findDuplicateTagFiles() {
+    final Map<String, List<String>> tagToFilePaths = {};
+
+    // 각 태그가 어떤 파일들에서 사용되는지 매핑
+    for (final file in state.files) {
+      for (final tag in file.tags) {
+        tagToFilePaths.putIfAbsent(tag, () => []).add(file.path);
+      }
+    }
+
+    // 2개 이상의 파일에서 사용된 태그가 있는 파일들 수집
+    final Set<String> duplicatePaths = {};
+    for (final entry in tagToFilePaths.entries) {
+      if (entry.value.length > 1) {
+        duplicatePaths.addAll(entry.value);
+      }
+    }
+
+    return duplicatePaths;
+  }
+
+  /// 중복 태그 표시 초기화
+  void clearDuplicateTagHighlight() {
+    state = state.copyWith(duplicateTagFilePaths: {});
+  }
 
   void addFileTag(String filePath, String tag) {
     final t = tag.trim();
@@ -221,9 +261,8 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
   void addTagsToFile(String filePath, List<String> tags) {
     final newFiles = state.files.map((f) {
       if (f.path != filePath) return f;
-
-      final merged = {...f.tags, ...tags}.toList(); // 중복 제거
-      return f.copyWith(tags: merged);
+      // 병합이 아닌 교체 방식으로 변경 (사용자가 태그 삭제 시 반영됨)
+      return f.copyWith(tags: tags);
     }).toList();
 
     state = state.copyWith(files: newFiles);

@@ -22,6 +22,9 @@ class TistoryPostingState {
 
   final UiMessage? uiMessage;
 
+  // 중복 태그가 있는 파일 경로 목록 (빨간색 표시용)
+  final Set<String> duplicateTagFilePaths;
+
   const TistoryPostingState({
     required this.accounts,
     required this.selectedAccountId,
@@ -35,6 +38,7 @@ class TistoryPostingState {
     required this.draftBlogName,
     required this.pwHasKorean,
     this.uiMessage,
+    this.duplicateTagFilePaths = const {},
   });
 
   factory TistoryPostingState.initial() => const TistoryPostingState(
@@ -66,6 +70,7 @@ class TistoryPostingState {
     UiMessage? uiMessage,
     bool clearUiMessage = false,
     int? lastExitCode,
+    Set<String>? duplicateTagFilePaths,
   }) {
     return TistoryPostingState(
       accounts: accounts ?? this.accounts,
@@ -80,6 +85,7 @@ class TistoryPostingState {
       draftBlogName: draftBlogName ?? this.draftBlogName,
       pwHasKorean: pwHasKorean ?? this.pwHasKorean,
       uiMessage: clearUiMessage ? null : (uiMessage ?? this.uiMessage),
+      duplicateTagFilePaths: duplicateTagFilePaths ?? this.duplicateTagFilePaths,
     );
   }
 }

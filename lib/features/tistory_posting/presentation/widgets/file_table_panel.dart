@@ -10,6 +10,7 @@ class FileTablePanel extends StatelessWidget {
   final bool disabled;
   final FileTagsSubmit onSubmitTags;
   final FileRemove onRemoveFile;
+  final Set<String> duplicateTagFilePaths;
 
   const FileTablePanel({
     super.key,
@@ -17,6 +18,7 @@ class FileTablePanel extends StatelessWidget {
     required this.disabled,
     required this.onSubmitTags,
     required this.onRemoveFile,
+    this.duplicateTagFilePaths = const {},
   });
 
   @override
@@ -69,10 +71,12 @@ class FileTablePanel extends StatelessWidget {
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
               final file = files[index];
+              final isDuplicate = duplicateTagFilePaths.contains(file.path);
               return _FileTableRow(
                 key: ValueKey(file.path),
                 file: file,
                 disabled: disabled,
+                isDuplicate: isDuplicate,
                 onSubmitTags: onSubmitTags,
                 onRemoveFile: onRemoveFile,
               );
@@ -87,6 +91,7 @@ class FileTablePanel extends StatelessWidget {
 class _FileTableRow extends StatefulWidget {
   final UploadFileItem file;
   final bool disabled;
+  final bool isDuplicate;
   final FileTagsSubmit onSubmitTags;
   final FileRemove onRemoveFile;
 
@@ -94,6 +99,7 @@ class _FileTableRow extends StatefulWidget {
     super.key,
     required this.file,
     required this.disabled,
+    this.isDuplicate = false,
     required this.onSubmitTags,
     required this.onRemoveFile,
   });
@@ -125,6 +131,7 @@ class _FileTableRowState extends State<_FileTableRow> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final isDup = widget.isDuplicate;
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -133,8 +140,11 @@ class _FileTableRowState extends State<_FileTableRow> {
       ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppSpacing.r12),
-        border: Border.all(color: Theme.of(context).dividerColor),
-        color: scheme.surface,
+        border: Border.all(
+          color: isDup ? Colors.red : Theme.of(context).dividerColor,
+          width: isDup ? 2 : 1,
+        ),
+        color: isDup ? Colors.red.withValues(alpha: 0.08) : scheme.surface,
       ),
       child: Row(
         children: [

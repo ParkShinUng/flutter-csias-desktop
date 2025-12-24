@@ -19,8 +19,8 @@ function readStdinOnce() {
   });
 }
 
-function ensureDir(p) {
-  fs.mkdirSync(p, { recursive: true });
+async function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function parseHtmlToTitleAndBody(htmlString) {
@@ -151,9 +151,6 @@ async function routeTistoryPost(payload) {
     const headers = await createPostHeaders(context, page, account.blogName);
     emit({ event: "log", message: "Extracted headers" });
 
-    let success = 0;
-    let failed = 0;
-
     for (let i = 0; i < posts.length; i++) {
       const post = posts[i];
       emit({
@@ -173,9 +170,11 @@ async function routeTistoryPost(payload) {
         tags: post.tags || [],
         extraHeaders: headers,
       });
+
+      await delay(100);
     }
 
-    emit({ event: "done", success, failed });
+    emit({ event: "done", message: "All posts processed." });
   } finally {
     await context.close().catch(() => {});
     await browser.close().catch(() => {});
