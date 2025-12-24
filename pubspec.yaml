@@ -75,6 +75,7 @@ flutter:
   assets:
     - assets/bin/macos/node-darwin-x64-darwin-arm64
     - assets/runner/runner.js
+    - assets/runner/node_modules/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

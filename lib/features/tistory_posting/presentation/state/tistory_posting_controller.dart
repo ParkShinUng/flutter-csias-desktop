@@ -162,11 +162,15 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
       await _runnerProc!.stdin.close();
 
       // stdout 로그 스트림 처리(JSON line)
+      var postingDoneFlag = false;
       _runnerProc!.stdout
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .listen((line) {
-            showInfo("Complete posting automation!");
+            if (!postingDoneFlag) {
+              showInfo("Complete posting automation!");
+              postingDoneFlag = true;
+            }
           });
 
       _runnerProc!.stderr

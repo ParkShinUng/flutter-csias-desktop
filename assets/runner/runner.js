@@ -2,7 +2,7 @@
 /* eslint-disable no-console */
 const fs = require("fs");
 const path = require("path");
-const { chromium } = require("playwright");
+const { chromium } = require("playwright-core");
 const cheerio = require("cheerio");
 const http = require("http");
 
@@ -152,7 +152,7 @@ async function routeTistoryPost(payload) {
   try {
     await loginTistory(page, { id: account.id, pw: account.pw });
 
-    if (realStorageState === '') {
+    if (realStorageState === undefined) {
       await context.storageState({ path: storageStatePath });
     }
 

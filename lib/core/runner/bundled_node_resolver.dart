@@ -18,9 +18,9 @@ class BundledNodeResolver {
 
     final appDir = Directory(
       exePath,
-    ).parent.parent.parent.parent.path; // .../Contents
+    ).parent.parent.path; // .../Contents
     final assetDir = Directory(
-      '$appDir/App.framework/Resources/flutter_assets/assets',
+      '$appDir/Frameworks/App.framework/Resources/flutter_assets/assets',
     ).path;
 
     // 너가 번들에 넣을 위치를 아래처럼 “고정 규칙”으로 잡는 게 유지보수에 좋음
