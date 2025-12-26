@@ -165,3 +165,5 @@ app.*.symbols
 .gclient_previous_sync_commits
 
 /assets/runner/node_modules/
+/dist/csias_desktop.dmg
+/assets/bin/macos/node-darwin-x64-darwin-arm64
