@@ -7,8 +7,8 @@ class AccountSelectorBar extends StatelessWidget {
   final List<TistoryAccount> accounts;
   final String? selectedAccountId;
   final bool disabled;
-  final int todayPosts;
   final int remainingPosts;
+  final Map<String, int> todayPostCounts;
   final void Function(String?) onSelectAccount;
   final VoidCallback onManageAccounts;
 
@@ -17,8 +17,8 @@ class AccountSelectorBar extends StatelessWidget {
     required this.accounts,
     required this.selectedAccountId,
     required this.disabled,
-    required this.todayPosts,
     required this.remainingPosts,
+    required this.todayPostCounts,
     required this.onSelectAccount,
     required this.onManageAccounts,
   });
@@ -81,7 +81,7 @@ class AccountSelectorBar extends StatelessWidget {
                           ),
                           if (selectedAccount != null)
                             Text(
-                              selectedAccount.blogName,
+                              '${selectedAccount.blogName} · $remainingPosts / ${PostingHistoryService.maxDailyPosts}',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: scheme.onSurfaceVariant,
@@ -101,6 +101,9 @@ class AccountSelectorBar extends StatelessWidget {
                   ),
                   itemBuilder: (context) => accounts.map((account) {
                     final isSelected = account.id == selectedAccountId;
+                    final accountTodayPosts = todayPostCounts[account.id] ?? 0;
+                    final accountRemaining =
+                        PostingHistoryService.maxDailyPosts - accountTodayPosts;
                     return PopupMenuItem<String>(
                       value: account.id,
                       child: Row(
@@ -115,25 +118,35 @@ class AccountSelectorBar extends StatelessWidget {
                                 : scheme.onSurfaceVariant,
                           ),
                           const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                account.kakaoId,
-                                style: TextStyle(
-                                  fontWeight: isSelected
-                                      ? FontWeight.w600
-                                      : FontWeight.normal,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  account.kakaoId,
+                                  style: TextStyle(
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                account.blogName,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: scheme.onSurfaceVariant,
+                                Text(
+                                  account.blogName,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: scheme.onSurfaceVariant,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            '$accountRemaining/${PostingHistoryService.maxDailyPosts}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: scheme.onSurfaceVariant,
+                            ),
                           ),
                         ],
                       ),
@@ -155,18 +168,6 @@ class AccountSelectorBar extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           ),
         ),
-
-        const SizedBox(width: AppSpacing.s16),
-
-        // 오늘 포스팅 현황
-        if (selectedAccountId != null)
-          Text(
-            '오늘 $todayPosts/${PostingHistoryService.maxDailyPosts} (남은 $remainingPosts개)',
-            style: TextStyle(
-              fontSize: 13,
-              color: scheme.onSurfaceVariant,
-            ),
-          ),
       ],
     );
   }

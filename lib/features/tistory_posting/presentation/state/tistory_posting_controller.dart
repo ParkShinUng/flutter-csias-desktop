@@ -156,7 +156,8 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     if (remainingPosts <= 0) {
       showError(
         "일일 포스팅 한도 초과",
-        detail: "오늘 이 계정으로 더 이상 포스팅할 수 없습니다.\n(일일 최대 ${PostingHistoryService.maxDailyPosts}개)",
+        detail:
+            "오늘 이 계정으로 더 이상 포스팅할 수 없습니다.\n(일일 최대 ${PostingHistoryService.maxDailyPosts}개)",
       );
       return;
     }
@@ -164,7 +165,8 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     if (postCount > remainingPosts) {
       showError(
         "포스팅 개수 초과",
-        detail: "현재 ${postCount}개의 파일이 있지만, 오늘 남은 포스팅 가능 개수는 ${remainingPosts}개입니다.\n파일을 ${remainingPosts}개 이하로 줄여주세요.",
+        detail:
+            "현재 ${postCount}개의 파일이 있지만, 오늘 포스팅 가능 개수는 ${remainingPosts}개입니다.\n파일을 ${remainingPosts}개 이하로 줄여주세요.",
       );
       return;
     }
