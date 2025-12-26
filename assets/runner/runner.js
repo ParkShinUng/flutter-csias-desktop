@@ -59,6 +59,7 @@ async function loginTistory(context, page, { id, pw, storageStatePath }) {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
+    
     await context.storageState({ path: storageStatePath });
   }
 
