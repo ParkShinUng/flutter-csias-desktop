@@ -47,7 +47,10 @@ class FileTablePanel extends StatelessWidget {
               const SizedBox(width: AppSpacing.s12),
               const Expanded(
                 flex: 5,
-                child: Text("태그 입력 (띄어쓰기 구분)", overflow: TextOverflow.ellipsis),
+                child: Text(
+                  "태그 입력 (* 쉼표 구분, 최대 10개, 중복 불가)",
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               const SizedBox(width: AppSpacing.s12),
               SizedBox(
@@ -115,9 +118,7 @@ class _FileTableRowState extends State<_FileTableRow> {
   @override
   void initState() {
     super.initState();
-    _c = TextEditingController(
-      text: widget.file.tags.join(' '), // ✅ 기존 태그를 텍스트로
-    );
+    _c = TextEditingController(text: widget.file.tags.join(', '));
     _f = FocusNode();
   }
 
@@ -180,7 +181,7 @@ class _FileTableRowState extends State<_FileTableRow> {
               focusNode: _f,
               enabled: !widget.disabled,
               decoration: const InputDecoration(
-                hintText: "예) 뷰티 맛집 서울",
+                hintText: "예) 뷰티, 맛집, 서울",
                 isDense: true,
                 contentPadding: EdgeInsets.symmetric(
                   horizontal: 12,
@@ -189,8 +190,8 @@ class _FileTableRowState extends State<_FileTableRow> {
               ),
               onChanged: (value) {
                 final tags = value
-                    .trim()
-                    .split(RegExp(r'\s+'))
+                    .split(',')
+                    .map((e) => e.trim())
                     .where((e) => e.isNotEmpty)
                     .toList();
 

@@ -113,7 +113,7 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
               .map((f) => ({"htmlFilePath": f.path, "tags": f.tags}))
               .toList(),
           "options": {
-            "headless": false,
+            "headless": true,
             "chromeExecutable":
                 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
           },
