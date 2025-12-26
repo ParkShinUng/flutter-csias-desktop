@@ -5,17 +5,21 @@ import 'app_spacing.dart';
 
 class AppTheme {
   static ThemeData light() {
-    final base = ThemeData(
-      useMaterial3: true,
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: AppColors.brand500,
       brightness: Brightness.light,
-      colorSchemeSeed: AppColors.brand500,
+    ).copyWith(
+      onSurface: AppColors.textPrimaryLight,
+      onSurfaceVariant: AppColors.textSecondaryLight,
     );
 
-    return base.copyWith(
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.light,
+      colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.bgLight,
       textTheme: AppTypography.light,
 
-      // ✅ 변경: CardTheme -> CardThemeData
       cardTheme: CardThemeData(
         color: AppColors.surfaceLight,
         elevation: 0,
@@ -28,10 +32,23 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surfaceLight,
+        labelStyle: const TextStyle(color: AppColors.textSecondaryLight),
+        hintStyle: const TextStyle(color: AppColors.textSecondaryLight),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppSpacing.r12),
           borderSide: const BorderSide(color: AppColors.borderLight),
         ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.r12),
+          borderSide: const BorderSide(color: AppColors.borderLight),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.r12),
+          borderSide: const BorderSide(color: AppColors.brand500, width: 2),
+        ),
+      ),
+      textSelectionTheme: const TextSelectionThemeData(
+        cursorColor: AppColors.brand500,
       ),
     );
   }
