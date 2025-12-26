@@ -1,4 +1,5 @@
 import 'package:csias_desktop/core/theme/app_spacing.dart';
+import 'package:csias_desktop/features/tistory_posting/data/posting_history_service.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_account.dart';
 import 'package:flutter/material.dart';
 
@@ -6,6 +7,8 @@ class AccountSelectorBar extends StatelessWidget {
   final List<TistoryAccount> accounts;
   final String? selectedAccountId;
   final bool disabled;
+  final int todayPosts;
+  final int remainingPosts;
   final void Function(String?) onSelectAccount;
   final VoidCallback onManageAccounts;
 
@@ -14,6 +17,8 @@ class AccountSelectorBar extends StatelessWidget {
     required this.accounts,
     required this.selectedAccountId,
     required this.disabled,
+    required this.todayPosts,
+    required this.remainingPosts,
     required this.onSelectAccount,
     required this.onManageAccounts,
   });
@@ -150,6 +155,65 @@ class AccountSelectorBar extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           ),
         ),
+
+        const SizedBox(width: AppSpacing.s16),
+
+        // 오늘 포스팅 현황
+        if (selectedAccountId != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: remainingPosts > 5
+                  ? scheme.primaryContainer.withValues(alpha: 0.5)
+                  : remainingPosts > 0
+                      ? scheme.tertiaryContainer.withValues(alpha: 0.5)
+                      : scheme.errorContainer.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  remainingPosts > 5
+                      ? Icons.check_circle_outline
+                      : remainingPosts > 0
+                          ? Icons.warning_amber_rounded
+                          : Icons.block,
+                  size: 16,
+                  color: remainingPosts > 5
+                      ? scheme.primary
+                      : remainingPosts > 0
+                          ? scheme.tertiary
+                          : scheme.error,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '오늘 $todayPosts/${PostingHistoryService.maxDailyPosts}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: remainingPosts > 5
+                        ? scheme.onPrimaryContainer
+                        : remainingPosts > 0
+                            ? scheme.onTertiaryContainer
+                            : scheme.onErrorContainer,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '(남은 $remainingPosts개)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: remainingPosts > 5
+                        ? scheme.onPrimaryContainer.withValues(alpha: 0.7)
+                        : remainingPosts > 0
+                            ? scheme.onTertiaryContainer.withValues(alpha: 0.7)
+                            : scheme.onErrorContainer.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }

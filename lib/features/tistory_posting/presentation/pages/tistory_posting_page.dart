@@ -45,6 +45,8 @@ class TistoryPostingPage extends ConsumerWidget {
                   accounts: state.accounts,
                   selectedAccountId: state.selectedAccountId,
                   disabled: state.isRunning,
+                  todayPosts: state.selectedAccountTodayPosts,
+                  remainingPosts: state.selectedAccountRemainingPosts,
                   onSelectAccount: controller.selectAccount,
                   onManageAccounts: () => _showAccountManagement(context),
                 ),

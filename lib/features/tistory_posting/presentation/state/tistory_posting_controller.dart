@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:csias_desktop/core/runner/bundled_node_resolver.dart';
 import 'package:csias_desktop/core/ui/ui_message.dart';
 import 'package:csias_desktop/features/tistory_posting/data/account_storage_service.dart';
+import 'package:csias_desktop/features/tistory_posting/data/posting_history_service.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_account.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_state.dart';
 import 'package:path/path.dart' as p;
@@ -21,6 +22,16 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
 
   Future<void> _init() async {
     await loadAccounts();
+    await loadPostingHistory();
+    // 오래된 기록 정리
+    await PostingHistoryService.cleanupOldHistory();
+  }
+
+  /* ========================= Posting History ========================= */
+
+  Future<void> loadPostingHistory() async {
+    final counts = await PostingHistoryService.getAllTodayPostCounts();
+    state = state.copyWith(todayPostCounts: counts);
   }
 
   /* ========================= Accounts ========================= */
@@ -138,6 +149,26 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
       return;
     }
 
+    // 일일 포스팅 제한 검사
+    final postCount = state.files.length;
+    final remainingPosts = state.selectedAccountRemainingPosts;
+
+    if (remainingPosts <= 0) {
+      showError(
+        "일일 포스팅 한도 초과",
+        detail: "오늘 이 계정으로 더 이상 포스팅할 수 없습니다.\n(일일 최대 ${PostingHistoryService.maxDailyPosts}개)",
+      );
+      return;
+    }
+
+    if (postCount > remainingPosts) {
+      showError(
+        "포스팅 개수 초과",
+        detail: "현재 ${postCount}개의 파일이 있지만, 오늘 남은 포스팅 가능 개수는 ${remainingPosts}개입니다.\n파일을 ${remainingPosts}개 이하로 줄여주세요.",
+      );
+      return;
+    }
+
     // 태그 중복 검사
     final duplicatePaths = _findDuplicateTagFiles();
     if (duplicatePaths.isNotEmpty) {
@@ -191,12 +222,14 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
       await _runnerProc!.stdin.flush();
       await _runnerProc!.stdin.close();
 
+      bool hasError = false;
+
       _runnerProc!.stdout
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .listen((line) {
             if (line.contains("All posts processed.")) {
-              showInfo("Complete posting automation!");
+              // 포스팅 완료 - 카운트 증가는 exitCode 후에 처리
             }
           });
 
@@ -204,11 +237,23 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .listen((line) {
-            showError("Posting runner Error");
+            hasError = true;
           });
 
-      await _runnerProc!.exitCode;
+      final exitCode = await _runnerProc!.exitCode;
       _runnerProc = null;
+
+      if (exitCode == 0 && !hasError) {
+        // 포스팅 성공 - 카운트 증가
+        await PostingHistoryService.incrementPostCount(
+          account.id,
+          count: postCount,
+        );
+        await loadPostingHistory();
+        showInfo("포스팅 완료! (${postCount}개)");
+      } else {
+        showError("포스팅 중 오류가 발생했습니다.");
+      }
 
       state = state.copyWith(isRunning: false);
     } catch (e) {
