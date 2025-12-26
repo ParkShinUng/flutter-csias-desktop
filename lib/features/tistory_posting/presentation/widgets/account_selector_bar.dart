@@ -160,58 +160,11 @@ class AccountSelectorBar extends StatelessWidget {
 
         // 오늘 포스팅 현황
         if (selectedAccountId != null)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: remainingPosts > 5
-                  ? scheme.primaryContainer.withValues(alpha: 0.5)
-                  : remainingPosts > 0
-                      ? scheme.tertiaryContainer.withValues(alpha: 0.5)
-                      : scheme.errorContainer.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  remainingPosts > 5
-                      ? Icons.check_circle_outline
-                      : remainingPosts > 0
-                          ? Icons.warning_amber_rounded
-                          : Icons.block,
-                  size: 16,
-                  color: remainingPosts > 5
-                      ? scheme.primary
-                      : remainingPosts > 0
-                          ? scheme.tertiary
-                          : scheme.error,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '오늘 $todayPosts/${PostingHistoryService.maxDailyPosts}',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: remainingPosts > 5
-                        ? scheme.onPrimaryContainer
-                        : remainingPosts > 0
-                            ? scheme.onTertiaryContainer
-                            : scheme.onErrorContainer,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '(남은 $remainingPosts개)',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: remainingPosts > 5
-                        ? scheme.onPrimaryContainer.withValues(alpha: 0.7)
-                        : remainingPosts > 0
-                            ? scheme.onTertiaryContainer.withValues(alpha: 0.7)
-                            : scheme.onErrorContainer.withValues(alpha: 0.7),
-                  ),
-                ),
-              ],
+          Text(
+            '오늘 $todayPosts/${PostingHistoryService.maxDailyPosts} (남은 $remainingPosts개)',
+            style: TextStyle(
+              fontSize: 13,
+              color: scheme.onSurfaceVariant,
             ),
           ),
       ],
