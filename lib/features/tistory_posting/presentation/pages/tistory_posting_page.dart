@@ -1,7 +1,8 @@
 import 'package:csias_desktop/core/ui/app_message_dialog.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_provider.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_state.dart';
-import 'package:csias_desktop/features/tistory_posting/presentation/widgets/account_inline_input_bar.dart';
+import 'package:csias_desktop/features/tistory_posting/presentation/widgets/account_management_dialog.dart';
+import 'package:csias_desktop/features/tistory_posting/presentation/widgets/account_selector_bar.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/widgets/drop_zone.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/widgets/file_table_panel.dart';
 import 'package:flutter/material.dart';
@@ -18,7 +19,6 @@ class TistoryPostingPage extends ConsumerWidget {
     final state = ref.watch(tistoryPostingProvider);
     final controller = ref.read(tistoryPostingProvider.notifier);
 
-    // DropZone Mode flag
     final hasSelected =
         state.files.isNotEmpty && state.selectedFilePath != null;
 
@@ -27,7 +27,6 @@ class TistoryPostingPage extends ConsumerWidget {
       final msg = next.uiMessage;
       if (msg == null) return;
 
-      // 중복 호출 방지: 먼저 clear 한 다음 다이얼로그
       ref.read(tistoryPostingProvider.notifier).clearUiMessage();
 
       if (!context.mounted) return;
@@ -36,34 +35,18 @@ class TistoryPostingPage extends ConsumerWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final h = constraints.maxHeight;
-
-        // ✅ 3행 비율 (원하면 숫자만 조정)
-        final row1 = (h * 0.1).clamp(120.0, 120.0);
-        final row2 = (h - row1) - (AppSpacing.s16 * 2);
-
         return Column(
           children: [
-            // ===================== ROW 1: Top Bar (Account + Actions) =====================
-            SizedBox(
-              height: row1,
-              child: AppCard(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.s16,
-                    vertical: 12,
-                  ),
-                  child: AccountInlineInputBar(
-                    disabled: state.isRunning,
-                    isRunning: state.isRunning,
-                    kakaoId: state.draftKakaoId ?? "",
-                    password: state.draftPassword ?? "",
-                    blogName: state.draftBlogName ?? "",
-                    onStart: controller.start,
-                    onChangedId: controller.setDraftKakaoId,
-                    onChangedPw: controller.setDraftPassword,
-                    onChangedBlogName: controller.setDraftBlogName,
-                  ),
+            // ===================== ROW 1: Account Selector =====================
+            AppCard(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.s16),
+                child: AccountSelectorBar(
+                  accounts: state.accounts,
+                  selectedAccountId: state.selectedAccountId,
+                  disabled: state.isRunning,
+                  onSelectAccount: controller.selectAccount,
+                  onManageAccounts: () => _showAccountManagement(context),
                 ),
               ),
             ),
@@ -71,8 +54,7 @@ class TistoryPostingPage extends ConsumerWidget {
             const SizedBox(height: AppSpacing.s8),
 
             // ===================== ROW 2: 파일 선택 & 태그 입력 =====================
-            SizedBox(
-              height: row2,
+            Expanded(
               child: AppCard(
                 child: LayoutBuilder(
                   builder: (context, c) {
@@ -81,7 +63,6 @@ class TistoryPostingPage extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // 헤더 + 우측 액션
                           Row(
                             children: [
                               Text(
@@ -97,11 +78,32 @@ class TistoryPostingPage extends ConsumerWidget {
                                   icon: const Icon(Icons.delete_outline),
                                   label: const Text("전체 초기화"),
                                 ),
+                              const SizedBox(width: AppSpacing.s8),
+                              SizedBox(
+                                height: 40,
+                                child: FilledButton.icon(
+                                  onPressed: (state.isRunning ||
+                                          state.accounts.isEmpty ||
+                                          state.selectedAccountId == null ||
+                                          state.files.isEmpty)
+                                      ? null
+                                      : controller.start,
+                                  icon: state.isRunning
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Icon(Icons.play_arrow),
+                                  label: Text(state.isRunning ? "실행 중" : "포스팅 시작"),
+                                ),
+                              ),
                             ],
                           ),
                           const SizedBox(height: AppSpacing.s12),
 
-                          // 본문: DropZone 또는 리스트
                           Expanded(
                             child: AnimatedSwitcher(
                               duration: const Duration(milliseconds: 160),
@@ -117,7 +119,6 @@ class TistoryPostingPage extends ConsumerWidget {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        // 선택된 파일이 있는 상태에서 상단 가이드/상태
                                         Row(
                                           children: [
                                             Text(
@@ -130,14 +131,15 @@ class TistoryPostingPage extends ConsumerWidget {
                                         ),
                                         const SizedBox(height: AppSpacing.s12),
 
-                                        // 파일 리스트(파일별 태그)
                                         Expanded(
                                           child: FileTablePanel(
                                             files: state.files,
                                             disabled: state.isRunning,
-                                            duplicateTagFilePaths: state.duplicateTagFilePaths,
+                                            duplicateTagFilePaths:
+                                                state.duplicateTagFilePaths,
                                             onSubmitTags: (filePath, tags) {
-                                              controller.addTagsToFile(filePath, tags);
+                                              controller.addTagsToFile(
+                                                  filePath, tags);
                                             },
                                             onRemoveFile: (filePath) {
                                               controller.removeFile(filePath);
@@ -161,5 +163,9 @@ class TistoryPostingPage extends ConsumerWidget {
         );
       },
     );
+  }
+
+  void _showAccountManagement(BuildContext context) {
+    showAccountManagementDialog(context);
   }
 }

@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:csias_desktop/core/runner/bundled_node_resolver.dart';
 import 'package:csias_desktop/core/ui/ui_message.dart';
+import 'package:csias_desktop/features/tistory_posting/data/account_storage_service.dart';
+import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_account.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_state.dart';
 import 'package:path/path.dart' as p;
 import 'package:csias_desktop/features/tistory_posting/domain/models/upload_file_item.dart';
@@ -13,7 +15,65 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
 
   static const _allowedExt = ['.html', '.htm'];
 
-  TistoryPostingController() : super(TistoryPostingState.initial());
+  TistoryPostingController() : super(TistoryPostingState.initial()) {
+    _init();
+  }
+
+  Future<void> _init() async {
+    await loadAccounts();
+  }
+
+  /* ========================= Accounts ========================= */
+
+  Future<void> loadAccounts() async {
+    final accounts = await AccountStorageService.loadAccounts();
+    state = state.copyWith(accounts: accounts);
+
+    // 계정이 있고 선택된 계정이 없으면 첫 번째 계정 선택
+    if (accounts.isNotEmpty && state.selectedAccountId == null) {
+      state = state.copyWith(selectedAccountId: accounts.first.id);
+    }
+  }
+
+  Future<void> addAccount(TistoryAccount account) async {
+    final newAccount = TistoryAccount(
+      id: AccountStorageService.generateId(),
+      kakaoId: account.kakaoId,
+      password: account.password,
+      blogName: account.blogName,
+    );
+    await AccountStorageService.addAccount(newAccount);
+    await loadAccounts();
+
+    // 새 계정 자동 선택
+    state = state.copyWith(selectedAccountId: newAccount.id);
+  }
+
+  Future<void> updateAccount(TistoryAccount account) async {
+    await AccountStorageService.updateAccount(account);
+    await loadAccounts();
+  }
+
+  Future<void> deleteAccount(String accountId) async {
+    await AccountStorageService.deleteAccount(accountId);
+    await loadAccounts();
+
+    // 삭제된 계정이 선택된 계정이면 선택 해제
+    if (state.selectedAccountId == accountId) {
+      if (state.accounts.isNotEmpty) {
+        state = state.copyWith(selectedAccountId: state.accounts.first.id);
+      } else {
+        state = state.copyWith(clearSelectedAccount: true);
+      }
+    }
+  }
+
+  void selectAccount(String? accountId) {
+    state = state.copyWith(
+      selectedAccountId: accountId,
+      clearSelectedAccount: accountId == null,
+    );
+  }
 
   /* ========================= Files ========================= */
 
@@ -67,11 +127,11 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
   Future<void> start() async {
     if (state.isRunning) return;
 
-    final draftId = (state.draftKakaoId ?? "").trim();
-    final draftPw = (state.draftPassword ?? "").trim();
-    final draftBlogName = (state.draftBlogName ?? "").trim();
-
-    if (draftId.isEmpty || draftPw.isEmpty || draftBlogName.isEmpty) return;
+    final account = state.selectedAccount;
+    if (account == null) {
+      showError("계정을 선택해주세요.");
+      return;
+    }
 
     if (state.files.isEmpty) {
       showError("업로드된 HTML 파일이 없습니다.");
@@ -103,12 +163,12 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
         "type": "tistory_post",
         "payload": {
           "account": {
-            "id": state.draftKakaoId,
-            "pw": state.draftPassword,
-            "blogName": state.draftBlogName,
+            "id": account.kakaoId,
+            "pw": account.password,
+            "blogName": account.blogName,
           },
           "storageStatePath":
-              "$storageStateDirPath/tistory_${state.draftKakaoId}.storageState.json",
+              "$storageStateDirPath/tistory_${account.kakaoId}.storageState.json",
           "posts": state.files
               .map((f) => ({"htmlFilePath": f.path, "tags": f.tags}))
               .toList(),
@@ -127,12 +187,10 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
         runInShell: false,
       );
 
-      // stdin에 JSON 1회 전송 후 닫기(중요: 안 닫으면 node가 stdin 기다리며 안 끝날 수 있음)
       _runnerProc!.stdin.writeln(jsonEncode(payload));
       await _runnerProc!.stdin.flush();
       await _runnerProc!.stdin.close();
 
-      // stdout 로그 스트림 처리(JSON line)
       _runnerProc!.stdout
           .transform(utf8.decoder)
           .transform(const LineSplitter())
@@ -161,18 +219,15 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
 
   /* ========================= Helpers ========================= */
 
-  /// 파일 간 태그 중복을 검사하고, 중복된 태그가 있는 파일 경로들을 반환
   Set<String> _findDuplicateTagFiles() {
     final Map<String, List<String>> tagToFilePaths = {};
 
-    // 각 태그가 어떤 파일들에서 사용되는지 매핑
     for (final file in state.files) {
       for (final tag in file.tags) {
         tagToFilePaths.putIfAbsent(tag, () => []).add(file.path);
       }
     }
 
-    // 2개 이상의 파일에서 사용된 태그가 있는 파일들 수집
     final Set<String> duplicatePaths = {};
     for (final entry in tagToFilePaths.entries) {
       if (entry.value.length > 1) {
@@ -186,28 +241,14 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
   void addTagsToFile(String filePath, List<String> tags) {
     final newFiles = state.files.map((f) {
       if (f.path != filePath) return f;
-      // 병합이 아닌 교체 방식으로 변경 (사용자가 태그 삭제 시 반영됨)
       return f.copyWith(tags: tags);
     }).toList();
 
-    // 태그 수정 시 중복 표시 자동 해제
     if (state.duplicateTagFilePaths.isNotEmpty) {
       state = state.copyWith(files: newFiles, duplicateTagFilePaths: {});
     } else {
       state = state.copyWith(files: newFiles);
     }
-  }
-
-  void setDraftKakaoId(String v) {
-    state = state.copyWith(draftKakaoId: v);
-  }
-
-  void setDraftPassword(String v) {
-    state = state.copyWith(draftPassword: v);
-  }
-
-  void setDraftBlogName(String v) {
-    state = state.copyWith(draftBlogName: v);
   }
 
   void showError(String message, {String? detail}) {
@@ -226,10 +267,8 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     final p = _runnerProc;
     if (p == null) return;
 
-    // 부드럽게 종료 시도
     p.kill(ProcessSignal.sigterm);
 
-    // 일정 시간 후에도 안 죽으면 강제
     await Future.delayed(const Duration(milliseconds: 600));
     if (_runnerProc != null) {
       _runnerProc!.kill(ProcessSignal.sigkill);

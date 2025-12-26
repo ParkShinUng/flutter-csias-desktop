@@ -1,14 +1,14 @@
 import 'package:csias_desktop/core/ui/ui_message.dart';
+import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_account.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/upload_file_item.dart';
 
 class TistoryPostingState {
+  final List<TistoryAccount> accounts;
+  final String? selectedAccountId;
+
   final List<UploadFileItem> files;
   final bool isRunning;
   final String? selectedFilePath;
-
-  final String? draftKakaoId;
-  final String? draftPassword;
-  final String? draftBlogName;
 
   final UiMessage? uiMessage;
 
@@ -16,43 +16,49 @@ class TistoryPostingState {
   final Set<String> duplicateTagFilePaths;
 
   const TistoryPostingState({
+    required this.accounts,
+    required this.selectedAccountId,
     required this.files,
     required this.isRunning,
     required this.selectedFilePath,
-    required this.draftKakaoId,
-    required this.draftPassword,
-    required this.draftBlogName,
     this.uiMessage,
     this.duplicateTagFilePaths = const {},
   });
 
   factory TistoryPostingState.initial() => const TistoryPostingState(
+    accounts: [],
+    selectedAccountId: null,
     files: [],
     isRunning: false,
     selectedFilePath: null,
-    draftKakaoId: null,
-    draftPassword: null,
-    draftBlogName: null,
   );
 
+  TistoryAccount? get selectedAccount {
+    if (selectedAccountId == null) return null;
+    try {
+      return accounts.firstWhere((a) => a.id == selectedAccountId);
+    } catch (_) {
+      return null;
+    }
+  }
+
   TistoryPostingState copyWith({
+    List<TistoryAccount>? accounts,
+    String? selectedAccountId,
+    bool clearSelectedAccount = false,
     List<UploadFileItem>? files,
     bool? isRunning,
     String? selectedFilePath,
-    String? draftKakaoId,
-    String? draftPassword,
-    String? draftBlogName,
     UiMessage? uiMessage,
     bool clearUiMessage = false,
     Set<String>? duplicateTagFilePaths,
   }) {
     return TistoryPostingState(
+      accounts: accounts ?? this.accounts,
+      selectedAccountId: clearSelectedAccount ? null : (selectedAccountId ?? this.selectedAccountId),
       files: files ?? this.files,
       isRunning: isRunning ?? this.isRunning,
       selectedFilePath: selectedFilePath ?? this.selectedFilePath,
-      draftKakaoId: draftKakaoId ?? this.draftKakaoId,
-      draftPassword: draftPassword ?? this.draftPassword,
-      draftBlogName: draftBlogName ?? this.draftBlogName,
       uiMessage: clearUiMessage ? null : (uiMessage ?? this.uiMessage),
       duplicateTagFilePaths: duplicateTagFilePaths ?? this.duplicateTagFilePaths,
     );
