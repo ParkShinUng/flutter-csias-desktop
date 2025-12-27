@@ -1,5 +1,5 @@
 import 'package:csias_desktop/core/ui/ui_message.dart';
-import 'package:csias_desktop/features/tistory_posting/data/posting_history_service.dart';
+import 'package:csias_desktop/features/tistory_posting/data/unified_storage_service.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_account.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/upload_file_item.dart';
 
@@ -55,7 +55,7 @@ class TistoryPostingState {
 
   /// 선택된 계정의 남은 포스팅 수
   int get selectedAccountRemainingPosts {
-    return PostingHistoryService.maxDailyPosts - selectedAccountTodayPosts;
+    return UnifiedStorageService.maxDailyPosts - selectedAccountTodayPosts;
   }
 
   TistoryPostingState copyWith({

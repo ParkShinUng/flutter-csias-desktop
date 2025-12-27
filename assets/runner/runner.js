@@ -48,7 +48,12 @@ async function loginTistory(context, page, { id, pw, storageStatePath }) {
     await page.click('button[type="submit"]');
 
     await page.waitForLoadState("domcontentloaded");
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(3000);
+
+    const descLogin = await page.locator('p.desc_login', { hasText: '카카오톡으로 로그인 확인 메세지가 전송되었습니다.' });
+    if (await descLogin.count() > 0) {
+      emit({ event: "log", message: "Request Login Auth" });
+    }
 
     while (!page.url().includes("www.tistory.com/")) {
       await page.waitForTimeout(1000);
@@ -59,7 +64,7 @@ async function loginTistory(context, page, { id, pw, storageStatePath }) {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    
+
     await context.storageState({ path: storageStatePath });
   }
 

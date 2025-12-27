@@ -1,5 +1,5 @@
 import 'package:csias_desktop/core/theme/app_spacing.dart';
-import 'package:csias_desktop/features/tistory_posting/data/posting_history_service.dart';
+import 'package:csias_desktop/features/tistory_posting/data/unified_storage_service.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_account.dart';
 import 'package:flutter/material.dart';
 
@@ -81,7 +81,7 @@ class AccountSelectorBar extends StatelessWidget {
                           ),
                           if (selectedAccount != null)
                             Text(
-                              '${selectedAccount.blogName} · $remainingPosts / ${PostingHistoryService.maxDailyPosts}',
+                              '${selectedAccount.blogName} · $remainingPosts / ${UnifiedStorageService.maxDailyPosts}',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: scheme.onSurfaceVariant,
@@ -103,7 +103,7 @@ class AccountSelectorBar extends StatelessWidget {
                     final isSelected = account.id == selectedAccountId;
                     final accountTodayPosts = todayPostCounts[account.id] ?? 0;
                     final accountRemaining =
-                        PostingHistoryService.maxDailyPosts - accountTodayPosts;
+                        UnifiedStorageService.maxDailyPosts - accountTodayPosts;
                     return PopupMenuItem<String>(
                       value: account.id,
                       child: Row(
@@ -142,7 +142,7 @@ class AccountSelectorBar extends StatelessWidget {
                           ),
                           const SizedBox(width: 12),
                           Text(
-                            '$accountRemaining/${PostingHistoryService.maxDailyPosts}',
+                            '$accountRemaining/${UnifiedStorageService.maxDailyPosts}',
                             style: TextStyle(
                               fontSize: 12,
                               color: scheme.onSurfaceVariant,

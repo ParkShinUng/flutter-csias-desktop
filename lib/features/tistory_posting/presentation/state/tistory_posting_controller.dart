@@ -3,8 +3,7 @@ import 'dart:io';
 
 import 'package:csias_desktop/core/runner/bundled_node_resolver.dart';
 import 'package:csias_desktop/core/ui/ui_message.dart';
-import 'package:csias_desktop/features/tistory_posting/data/account_storage_service.dart';
-import 'package:csias_desktop/features/tistory_posting/data/posting_history_service.dart';
+import 'package:csias_desktop/features/tistory_posting/data/unified_storage_service.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_account.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_state.dart';
 import 'package:path/path.dart' as p;
@@ -21,24 +20,18 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
   }
 
   Future<void> _init() async {
+    // 기존 데이터 마이그레이션 (최초 1회)
+    await UnifiedStorageService.migrateFromLegacy();
     await loadAccounts();
-    await loadPostingHistory();
-    // 오래된 기록 정리
-    await PostingHistoryService.cleanupOldHistory();
-  }
-
-  /* ========================= Posting History ========================= */
-
-  Future<void> loadPostingHistory() async {
-    final counts = await PostingHistoryService.getAllTodayPostCounts();
-    state = state.copyWith(todayPostCounts: counts);
   }
 
   /* ========================= Accounts ========================= */
 
   Future<void> loadAccounts() async {
-    final accounts = await AccountStorageService.loadAccounts();
-    state = state.copyWith(accounts: accounts);
+    final accounts = await UnifiedStorageService.loadAccounts();
+    final counts = await UnifiedStorageService.getAllTodayPostCounts();
+
+    state = state.copyWith(accounts: accounts, todayPostCounts: counts);
 
     // 계정이 있고 선택된 계정이 없으면 첫 번째 계정 선택
     if (accounts.isNotEmpty && state.selectedAccountId == null) {
@@ -48,12 +41,12 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
 
   Future<void> addAccount(TistoryAccount account) async {
     final newAccount = TistoryAccount(
-      id: AccountStorageService.generateId(),
+      id: UnifiedStorageService.generateId(),
       kakaoId: account.kakaoId,
       password: account.password,
       blogName: account.blogName,
     );
-    await AccountStorageService.addAccount(newAccount);
+    await UnifiedStorageService.addAccount(newAccount);
     await loadAccounts();
 
     // 새 계정 자동 선택
@@ -61,12 +54,24 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
   }
 
   Future<void> updateAccount(TistoryAccount account) async {
-    await AccountStorageService.updateAccount(account);
+    // 기존 계정의 storageState와 postingHistory 유지
+    final accounts = await UnifiedStorageService.loadAccounts();
+    final existingAccount = accounts.firstWhere(
+      (a) => a.id == account.id,
+      orElse: () => account,
+    );
+
+    final updatedAccount = account.copyWith(
+      storageState: existingAccount.storageState,
+      postingHistory: existingAccount.postingHistory,
+    );
+
+    await UnifiedStorageService.updateAccount(updatedAccount);
     await loadAccounts();
   }
 
   Future<void> deleteAccount(String accountId) async {
-    await AccountStorageService.deleteAccount(accountId);
+    await UnifiedStorageService.deleteAccount(accountId);
     await loadAccounts();
 
     // 삭제된 계정이 선택된 계정이면 선택 해제
@@ -157,7 +162,7 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
       showError(
         "일일 포스팅 한도 초과",
         detail:
-            "오늘 이 계정으로 더 이상 포스팅할 수 없습니다.\n(일일 최대 ${PostingHistoryService.maxDailyPosts}개)",
+            "오늘 이 계정으로 더 이상 포스팅할 수 없습니다.\n(일일 최대 ${UnifiedStorageService.maxDailyPosts}개)",
       );
       return;
     }
@@ -186,11 +191,21 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     // 중복 없으면 초기화
     state = state.copyWith(duplicateTagFilePaths: {}, isRunning: true);
 
+    String? tempStorageStatePath;
+
     try {
       final paths = BundledNodeResolver.resolve();
       final nodePath = paths.nodePath;
       final runnerJsPath = paths.runnerJsPath;
-      final storageStateDirPath = paths.storageStateDir;
+
+      // storageState를 임시 파일로 추출
+      tempStorageStatePath = await UnifiedStorageService.extractStorageState(
+        account,
+      );
+
+      // storageState가 있으면 headless 모드, 없으면 브라우저 표시 (로그인 필요)
+      final hasStorageState = account.storageState != null &&
+          account.storageState!.isNotEmpty;
 
       final payload = {
         "type": "tistory_post",
@@ -200,13 +215,12 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
             "pw": account.password,
             "blogName": account.blogName,
           },
-          "storageStatePath":
-              "$storageStateDirPath/tistory_${account.kakaoId}.storageState.json",
+          "storageStatePath": tempStorageStatePath,
           "posts": state.files
               .map((f) => ({"htmlFilePath": f.path, "tags": f.tags}))
               .toList(),
           "options": {
-            "headless": true,
+            "headless": hasStorageState,
             "chromeExecutable":
                 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
           },
@@ -232,6 +246,9 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
           .listen((line) {
             if (line.contains("All posts processed.")) {
               // 포스팅 완료 - 카운트 증가는 exitCode 후에 처리
+              showInfo("포스팅 완료!");
+            } else if (line.contains("Request Login Auth")) {
+              showInfo("Kakao 로그인 인증 요청이 전송되었습니다.\n(Check Mobile Kakao Login)");
             }
           });
 
@@ -245,20 +262,32 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
       final exitCode = await _runnerProc!.exitCode;
       _runnerProc = null;
 
+      // storageState를 다시 통합 파일로 가져오기
+      await UnifiedStorageService.importStorageState(
+        account.id,
+        tempStorageStatePath,
+      );
+
       if (exitCode == 0 && !hasError) {
         // 포스팅 성공 - 카운트 증가
-        await PostingHistoryService.incrementPostCount(
+        await UnifiedStorageService.incrementPostCount(
           account.id,
           count: postCount,
         );
-        await loadPostingHistory();
-        showInfo("포스팅 완료! (${postCount}개)");
+        await loadAccounts();
       } else {
         showError("포스팅 중 오류가 발생했습니다.");
       }
 
       state = state.copyWith(isRunning: false);
     } catch (e) {
+      // 에러 발생 시에도 storageState 가져오기 시도
+      if (tempStorageStatePath != null) {
+        await UnifiedStorageService.importStorageState(
+          account.id,
+          tempStorageStatePath,
+        );
+      }
       state = state.copyWith(isRunning: false);
       showError("Posting Start Error", detail: "\n$e");
     }
