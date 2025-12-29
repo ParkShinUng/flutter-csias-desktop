@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:csias_desktop/core/utils/app_logger.dart';
 import 'package:csias_desktop/features/tistory_posting/data/secure_password_service.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_account.dart';
 
@@ -47,6 +48,7 @@ class UnifiedStorageService {
       final file = File(_filePath);
 
       if (!await file.exists()) {
+        AppLogger.debug('계정 파일이 존재하지 않음: $_filePath', tag: 'Storage');
         return [];
       }
 
@@ -61,25 +63,70 @@ class UnifiedStorageService {
       // secure storage에서 비밀번호 불러오기
       final List<TistoryAccount> accountsWithPasswords = [];
       for (final account in accounts) {
-        final password = await SecurePasswordService.getPassword(account.id);
-        accountsWithPasswords.add(account.copyWith(
-          password: password ?? '',
-        ));
+        try {
+          final password = await SecurePasswordService.getPassword(account.id);
+          accountsWithPasswords.add(account.copyWith(
+            password: password ?? '',
+          ));
+        } catch (e) {
+          AppLogger.warning(
+            '비밀번호 로드 실패: ${account.id}',
+            tag: 'Storage',
+            error: e,
+          );
+          // 비밀번호 없이 계정 추가
+          accountsWithPasswords.add(account);
+        }
       }
 
+      AppLogger.debug('${accountsWithPasswords.length}개 계정 로드 완료', tag: 'Storage');
       return accountsWithPasswords;
-    } catch (e) {
+    } on FormatException catch (e) {
+      AppLogger.error(
+        '계정 파일 JSON 파싱 실패',
+        tag: 'Storage',
+        error: e,
+      );
+      return [];
+    } on FileSystemException catch (e) {
+      AppLogger.error(
+        '계정 파일 읽기 실패',
+        tag: 'Storage',
+        error: e,
+      );
+      return [];
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '계정 로드 중 예상치 못한 오류',
+        tag: 'Storage',
+        error: e,
+        stackTrace: stackTrace,
+      );
       return [];
     }
   }
 
   static Future<void> saveAccounts(List<TistoryAccount> accounts) async {
-    await _ensureDirectory();
-    final file = File(_filePath);
-    final data = {
-      'accounts': accounts.map((a) => a.toJson()).toList(),
-    };
-    await file.writeAsString(jsonEncode(data));
+    try {
+      await _ensureDirectory();
+      final file = File(_filePath);
+      final data = {
+        'accounts': accounts.map((a) => a.toJson()).toList(),
+      };
+      await file.writeAsString(jsonEncode(data));
+      AppLogger.debug('${accounts.length}개 계정 저장 완료', tag: 'Storage');
+    } on FileSystemException catch (e) {
+      AppLogger.error('계정 파일 저장 실패', tag: 'Storage', error: e);
+      rethrow;
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        '계정 저장 중 예상치 못한 오류',
+        tag: 'Storage',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
   }
 
   static Future<void> addAccount(TistoryAccount account) async {
@@ -203,22 +250,53 @@ class UnifiedStorageService {
     final accounts = await loadAccounts();
     final index = accounts.indexWhere((a) => a.id == accountId);
 
-    if (index != -1) {
-      final file = File(tempPath);
+    if (index == -1) {
+      AppLogger.warning('storageState 가져오기 실패: 계정을 찾을 수 없음 ($accountId)', tag: 'Storage');
+      return;
+    }
+
+    final file = File(tempPath);
+    if (!await file.exists()) {
+      AppLogger.warning('storageState 파일이 존재하지 않음: $tempPath', tag: 'Storage');
+      return;
+    }
+
+    try {
+      final content = await file.readAsString();
+      final storageState = jsonDecode(content) as Map<String, dynamic>;
+
+      accounts[index] = accounts[index].copyWith(storageState: storageState);
+      await saveAccounts(accounts);
+
+      // 임시 파일 삭제
+      await file.delete();
+      AppLogger.debug('storageState 가져오기 완료: $accountId', tag: 'Storage');
+    } on FormatException catch (e) {
+      AppLogger.warning(
+        'storageState JSON 파싱 실패',
+        tag: 'Storage',
+        error: e,
+      );
+      // 파싱 실패해도 임시 파일은 삭제 시도
+      _tryDeleteFile(file);
+    } catch (e) {
+      AppLogger.warning(
+        'storageState 가져오기 중 오류',
+        tag: 'Storage',
+        error: e,
+      );
+      _tryDeleteFile(file);
+    }
+  }
+
+  /// 파일 삭제를 시도합니다. 실패해도 무시합니다.
+  static Future<void> _tryDeleteFile(File file) async {
+    try {
       if (await file.exists()) {
-        try {
-          final content = await file.readAsString();
-          final storageState = jsonDecode(content) as Map<String, dynamic>;
-
-          accounts[index] = accounts[index].copyWith(storageState: storageState);
-          await saveAccounts(accounts);
-
-          // 임시 파일 삭제
-          await file.delete();
-        } catch (e) {
-          // 파싱 실패 시 무시
-        }
+        await file.delete();
       }
+    } catch (e) {
+      AppLogger.debug('임시 파일 삭제 실패: ${file.path}', tag: 'Storage');
     }
   }
 
@@ -241,6 +319,8 @@ class UnifiedStorageService {
     if (await newFile.exists()) {
       return;
     }
+
+    AppLogger.info('레거시 데이터 마이그레이션 시작', tag: 'Migration');
 
     final List<TistoryAccount> migratedAccounts = [];
     final Map<String, String> legacyPasswords = {};
@@ -265,7 +345,10 @@ class UnifiedStorageService {
 
           migratedAccounts.add(account);
         }
-      } catch (_) {}
+        AppLogger.debug('레거시 계정 ${migratedAccounts.length}개 발견', tag: 'Migration');
+      } catch (e) {
+        AppLogger.warning('레거시 accounts.json 파싱 실패', tag: 'Migration', error: e);
+      }
     }
 
     // 2. 기존 posting_history.json 로드 및 병합
@@ -279,7 +362,10 @@ class UnifiedStorageService {
           final dates = entry.value as Map<String, dynamic>;
           legacyHistory[entry.key] = dates.map((k, v) => MapEntry(k, v as int));
         }
-      } catch (_) {}
+        AppLogger.debug('레거시 포스팅 기록 로드 완료', tag: 'Migration');
+      } catch (e) {
+        AppLogger.warning('레거시 posting_history.json 파싱 실패', tag: 'Migration', error: e);
+      }
     }
 
     // 3. 기존 storageState 파일들 로드 및 병합
@@ -293,7 +379,13 @@ class UnifiedStorageService {
         try {
           final content = await stateFile.readAsString();
           storageState = jsonDecode(content) as Map<String, dynamic>;
-        } catch (_) {}
+        } catch (e) {
+          AppLogger.warning(
+            'storageState 파싱 실패: ${account.kakaoId}',
+            tag: 'Migration',
+            error: e,
+          );
+        }
       }
 
       // posting history 찾기
@@ -307,12 +399,24 @@ class UnifiedStorageService {
 
     // 4. 비밀번호를 secure storage에 저장
     for (final entry in legacyPasswords.entries) {
-      await SecurePasswordService.savePassword(entry.key, entry.value);
+      try {
+        await SecurePasswordService.savePassword(entry.key, entry.value);
+      } catch (e) {
+        AppLogger.warning(
+          '레거시 비밀번호 저장 실패: ${entry.key}',
+          tag: 'Migration',
+          error: e,
+        );
+      }
     }
 
     // 5. 새 파일에 저장 (비밀번호 제외됨)
     if (migratedAccounts.isNotEmpty) {
       await saveAccounts(migratedAccounts);
+      AppLogger.info(
+        '레거시 마이그레이션 완료: ${migratedAccounts.length}개 계정',
+        tag: 'Migration',
+      );
     }
   }
 
@@ -330,7 +434,7 @@ class UnifiedStorageService {
       final Map<String, dynamic> json = jsonDecode(content);
       final List<dynamic> accountsJson = json['accounts'] ?? [];
 
-      bool hasMigrated = false;
+      int migratedCount = 0;
 
       for (final accountJson in accountsJson) {
         final jsonMap = accountJson as Map<String, dynamic>;
@@ -340,23 +444,38 @@ class UnifiedStorageService {
         if (accountId != null &&
             legacyPassword != null &&
             legacyPassword.isNotEmpty) {
-          // 이미 secure storage에 비밀번호가 있는지 확인
-          final hasSecurePassword =
-              await SecurePasswordService.hasPassword(accountId);
+          try {
+            // 이미 secure storage에 비밀번호가 있는지 확인
+            final hasSecurePassword =
+                await SecurePasswordService.hasPassword(accountId);
 
-          if (!hasSecurePassword) {
-            // secure storage에 비밀번호 저장
-            await SecurePasswordService.savePassword(accountId, legacyPassword);
-            hasMigrated = true;
+            if (!hasSecurePassword) {
+              // secure storage에 비밀번호 저장
+              await SecurePasswordService.savePassword(accountId, legacyPassword);
+              migratedCount++;
+            }
+          } catch (e) {
+            AppLogger.warning(
+              '비밀번호 마이그레이션 실패: $accountId',
+              tag: 'Migration',
+              error: e,
+            );
           }
         }
       }
 
       // 마이그레이션 완료 후 JSON 파일에서 비밀번호 제거
-      if (hasMigrated) {
+      if (migratedCount > 0) {
+        AppLogger.info('$migratedCount개 비밀번호를 보안 저장소로 마이그레이션', tag: 'Migration');
         final accounts = await loadAccounts();
         await saveAccounts(accounts);
       }
-    } catch (_) {}
+    } catch (e) {
+      AppLogger.warning(
+        '비밀번호 마이그레이션 중 오류 발생',
+        tag: 'Migration',
+        error: e,
+      );
+    }
   }
 }

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:csias_desktop/core/runner/bundled_node_resolver.dart';
 import 'package:csias_desktop/core/runner/process_manager.dart';
+import 'package:csias_desktop/core/utils/app_logger.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_account.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/upload_file_item.dart';
 
@@ -83,6 +84,7 @@ class PostingRunnerService {
     final chromePath = paths.chromeExecutablePath;
 
     if (chromePath == null) {
+      AppLogger.error('Chrome/Edge 브라우저를 찾을 수 없음', tag: 'Runner');
       return PostingResult.failure(
         'Chrome 또는 Edge 브라우저를 찾을 수 없습니다. 설치 후 다시 시도해주세요.',
       );
@@ -91,6 +93,11 @@ class PostingRunnerService {
     try {
       final hasStorageState =
           account.storageState != null && account.storageState!.isNotEmpty;
+
+      AppLogger.info(
+        '포스팅 시작: ${files.length}개 파일, headless=$hasStorageState',
+        tag: 'Runner',
+      );
 
       final payload = _buildPayload(
         account: account,
@@ -114,6 +121,7 @@ class PostingRunnerService {
       await _process!.stdin.close();
 
       bool hasError = false;
+      String? lastStderr;
 
       _process!.stdout
           .transform(utf8.decoder)
@@ -130,18 +138,35 @@ class PostingRunnerService {
           .transform(const LineSplitter())
           .listen((line) {
         hasError = true;
+        lastStderr = line;
+        AppLogger.warning('Runner stderr: $line', tag: 'Runner');
       });
 
       final exitCode = await _process!.exitCode;
       _process = null;
 
       if (exitCode == 0 && !hasError) {
+        AppLogger.info('포스팅 완료: ${files.length}개 파일', tag: 'Runner');
         return PostingResult.success();
       } else {
-        return PostingResult.failure('포스팅 중 오류가 발생했습니다.');
+        final errorMsg = lastStderr != null
+            ? '포스팅 중 오류 발생: $lastStderr'
+            : '포스팅 중 오류가 발생했습니다 (exit code: $exitCode)';
+        AppLogger.error(errorMsg, tag: 'Runner');
+        return PostingResult.failure(errorMsg);
       }
-    } catch (e) {
+    } on ProcessException catch (e) {
       _process = null;
+      AppLogger.error('프로세스 실행 실패', tag: 'Runner', error: e);
+      return PostingResult.failure('Node.js 프로세스를 시작할 수 없습니다: ${e.message}');
+    } catch (e, stackTrace) {
+      _process = null;
+      AppLogger.error(
+        '포스팅 실행 중 예상치 못한 오류',
+        tag: 'Runner',
+        error: e,
+        stackTrace: stackTrace,
+      );
       return PostingResult.failure('포스팅 실행 오류: $e');
     }
   }
