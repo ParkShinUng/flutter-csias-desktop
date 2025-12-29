@@ -5,43 +5,133 @@ class BundledNodePaths {
   final String runnerJsPath;
   final String workingDir;
   final String storageStateDir;
+  final String? chromeExecutablePath;
 
   BundledNodePaths({
     required this.nodePath,
     required this.runnerJsPath,
     required this.workingDir,
     required this.storageStateDir,
+    this.chromeExecutablePath,
   });
 }
 
 class BundledNodeResolver {
   static BundledNodePaths resolve() {
+    if (Platform.isMacOS) {
+      return _resolveMacOS();
+    } else if (Platform.isWindows) {
+      return _resolveWindows();
+    } else {
+      throw UnsupportedError('Unsupported platform: ${Platform.operatingSystem}');
+    }
+  }
+
+  static BundledNodePaths _resolveMacOS() {
     final exePath = Platform.resolvedExecutable;
 
-    final appDir = Directory(exePath).parent.parent.path; // .../Contents
-    final assetDir = Directory(
-      '$appDir/Frameworks/App.framework/Resources/flutter_assets/assets',
-    ).path;
+    // macOS: /path/to/App.app/Contents/MacOS/app_name
+    // -> /path/to/App.app/Contents
+    final appDir = Directory(exePath).parent.parent.path;
+    final assetDir = '$appDir/Frameworks/App.framework/Resources/flutter_assets/assets';
 
     // ~/Library/Application Support/csias_desktop/storageState
     final home = Platform.environment['HOME'] ?? '';
-    final storageStateDir =
-        Directory('$home/Library/Application Support/csias_desktop/storageState').path;
-    final dir = Directory(storageStateDir);
-    if (!dir.existsSync()) {
-      dir.createSync(recursive: true);
-    }
+    final storageStateDir = '$home/Library/Application Support/csias_desktop/storageState';
+    _ensureDirectoryExists(storageStateDir);
 
-    // 너가 번들에 넣을 위치를 아래처럼 “고정 규칙”으로 잡는 게 유지보수에 좋음
     final nodePath = '$assetDir/bin/macos/node-darwin-x64-darwin-arm64';
     final runnerJsPath = '$assetDir/runner/runner.js';
-    final workingDir = assetDir;
+
+    // Chrome 경로 탐색
+    final chromePath = _findChromePathMacOS();
 
     return BundledNodePaths(
       nodePath: nodePath,
       runnerJsPath: runnerJsPath,
-      workingDir: workingDir,
+      workingDir: assetDir,
       storageStateDir: storageStateDir,
+      chromeExecutablePath: chromePath,
     );
+  }
+
+  static BundledNodePaths _resolveWindows() {
+    final exePath = Platform.resolvedExecutable;
+
+    // Windows: C:\path\to\app\csias_desktop.exe
+    // -> C:\path\to\app\data\flutter_assets\assets
+    final appDir = Directory(exePath).parent.path;
+    final assetDir = '$appDir\\data\\flutter_assets\\assets';
+
+    // %APPDATA%\csias_desktop\storageState
+    final appData = Platform.environment['APPDATA'] ?? '';
+    final storageStateDir = '$appData\\csias_desktop\\storageState';
+    _ensureDirectoryExists(storageStateDir);
+
+    final nodePath = '$assetDir\\bin\\windows\\node.exe';
+    final runnerJsPath = '$assetDir\\runner\\runner.js';
+
+    // Chrome 경로 탐색
+    final chromePath = _findChromePathWindows();
+
+    return BundledNodePaths(
+      nodePath: nodePath,
+      runnerJsPath: runnerJsPath,
+      workingDir: assetDir,
+      storageStateDir: storageStateDir,
+      chromeExecutablePath: chromePath,
+    );
+  }
+
+  static String? _findChromePathMacOS() {
+    const paths = [
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    ];
+
+    for (final path in paths) {
+      if (File(path).existsSync()) {
+        return path;
+      }
+    }
+
+    // 사용자 Applications 폴더도 확인
+    final home = Platform.environment['HOME'] ?? '';
+    final userChrome = '$home/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+    if (File(userChrome).existsSync()) {
+      return userChrome;
+    }
+
+    return null;
+  }
+
+  static String? _findChromePathWindows() {
+    final programFiles = Platform.environment['ProgramFiles'] ?? 'C:\\Program Files';
+    final programFilesX86 = Platform.environment['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)';
+    final localAppData = Platform.environment['LOCALAPPDATA'] ?? '';
+
+    final paths = [
+      '$programFiles\\Google\\Chrome\\Application\\chrome.exe',
+      '$programFilesX86\\Google\\Chrome\\Application\\chrome.exe',
+      '$localAppData\\Google\\Chrome\\Application\\chrome.exe',
+      // Edge (Chromium 기반) 대안
+      '$programFiles\\Microsoft\\Edge\\Application\\msedge.exe',
+      '$programFilesX86\\Microsoft\\Edge\\Application\\msedge.exe',
+    ];
+
+    for (final path in paths) {
+      if (File(path).existsSync()) {
+        return path;
+      }
+    }
+
+    return null;
+  }
+
+  static void _ensureDirectoryExists(String path) {
+    final dir = Directory(path);
+    if (!dir.existsSync()) {
+      dir.createSync(recursive: true);
+    }
   }
 }

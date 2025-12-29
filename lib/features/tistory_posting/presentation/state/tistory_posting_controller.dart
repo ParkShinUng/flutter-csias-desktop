@@ -198,6 +198,17 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
       final paths = BundledNodeResolver.resolve();
       final nodePath = paths.nodePath;
       final runnerJsPath = paths.runnerJsPath;
+      final chromePath = paths.chromeExecutablePath;
+
+      // Chrome/Edge가 설치되어 있지 않으면 에러
+      if (chromePath == null) {
+        state = state.copyWith(isRunning: false);
+        showError(
+          "Chrome 또는 Edge 브라우저를 찾을 수 없습니다",
+          detail: "Google Chrome 또는 Microsoft Edge를 설치해주세요.",
+        );
+        return;
+      }
 
       // storageState를 임시 파일로 추출
       tempStorageStatePath = await UnifiedStorageService.extractStorageState(
@@ -222,8 +233,7 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
               .toList(),
           "options": {
             "headless": hasStorageState,
-            "chromeExecutable":
-                "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "chromeExecutable": chromePath,
           },
         },
       };

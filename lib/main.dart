@@ -10,7 +10,8 @@ import 'core/runner/process_manager.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  if (Platform.isMacOS) {
+  // 데스크톱 윈도우 설정 (macOS, Windows)
+  if (Platform.isMacOS || Platform.isWindows) {
     setWindowTitle('CSIAS On Desktop For ChainShift');
     setWindowMinSize(const Size(1200, 900));
     setWindowFrame(const Rect.fromLTWH(100, 100, 1200, 900));

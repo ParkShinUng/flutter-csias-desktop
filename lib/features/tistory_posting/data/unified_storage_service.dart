@@ -9,11 +9,21 @@ class UnifiedStorageService {
   static const int maxDailyPosts = 15;
 
   static String get storagePath {
-    final home = Platform.environment['HOME'] ?? '';
-    return '$home/Library/Application Support/csias_desktop/data';
+    if (Platform.isMacOS) {
+      final home = Platform.environment['HOME'] ?? '';
+      return '$home/Library/Application Support/csias_desktop/data';
+    } else if (Platform.isWindows) {
+      final appData = Platform.environment['APPDATA'] ?? '';
+      return '$appData\\csias_desktop\\data';
+    } else {
+      throw UnsupportedError('Unsupported platform: ${Platform.operatingSystem}');
+    }
   }
 
-  static String get _filePath => '$storagePath/$fileName';
+  static String get _filePath {
+    final separator = Platform.isWindows ? '\\' : '/';
+    return '$storagePath$separator$fileName';
+  }
 
   static Future<void> _ensureDirectory() async {
     final dir = Directory(storagePath);
@@ -149,7 +159,8 @@ class UnifiedStorageService {
   /// 계정의 storageState를 임시 파일로 추출 (runner 실행 전)
   static Future<String> extractStorageState(TistoryAccount account) async {
     await _ensureDirectory();
-    final tempPath = '$storagePath/temp_${account.id}.storageState.json';
+    final separator = Platform.isWindows ? '\\' : '/';
+    final tempPath = '$storagePath${separator}temp_${account.id}.storageState.json';
     final file = File(tempPath);
 
     if (account.storageState != null) {
@@ -187,7 +198,13 @@ class UnifiedStorageService {
   }
 
   /// 기존 데이터 마이그레이션 (accounts.json, posting_history.json, storageState 파일들)
+  /// macOS에서만 수행됩니다. Windows에는 이전 데이터가 없습니다.
   static Future<void> migrateFromLegacy() async {
+    // Windows에서는 마이그레이션 스킵
+    if (!Platform.isMacOS) {
+      return;
+    }
+
     final home = Platform.environment['HOME'] ?? '';
     final legacyPath = '$home/Library/Application Support/csias_desktop/storageState';
 

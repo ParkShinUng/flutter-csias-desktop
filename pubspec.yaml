@@ -73,7 +73,10 @@ flutter:
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
   assets:
+    # Node.js 바이너리 (플랫폼별)
     - assets/bin/macos/node-darwin-x64-darwin-arm64
+    - assets/bin/windows/node.exe
+    # Runner 스크립트 및 모듈
     - assets/runner/runner.js
     - assets/runner/node_modules/
 
