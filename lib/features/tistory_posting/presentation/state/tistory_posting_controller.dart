@@ -1,9 +1,5 @@
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:csias_desktop/core/runner/bundled_node_resolver.dart';
-import 'package:csias_desktop/core/runner/process_manager.dart';
 import 'package:csias_desktop/core/ui/ui_message.dart';
+import 'package:csias_desktop/features/tistory_posting/data/posting_runner_service.dart';
 import 'package:csias_desktop/features/tistory_posting/data/unified_storage_service.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_account.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_state.dart';
@@ -12,7 +8,7 @@ import 'package:csias_desktop/features/tistory_posting/domain/models/upload_file
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class TistoryPostingController extends Notifier<TistoryPostingState> {
-  Process? _runnerProc;
+  final _runnerService = PostingRunnerService();
 
   static const _allowedExt = ['.html', '.htm'];
 
@@ -20,7 +16,7 @@ class TistoryPostingController extends Notifier<TistoryPostingState> {
   TistoryPostingState build() {
     // Provider dispose 시 runner 정리
     ref.onDispose(() {
-      disposeRunner();
+      _runnerService.stop();
     });
 
     // 초기화 (비동기)
@@ -153,139 +149,40 @@ class TistoryPostingController extends Notifier<TistoryPostingState> {
   Future<void> start() async {
     if (state.isRunning) return;
 
-    final account = state.selectedAccount;
-    if (account == null) {
-      showError("계정을 선택해주세요.");
+    // 유효성 검사
+    final validationError = _validateBeforeStart();
+    if (validationError != null) {
+      showError(validationError.message, detail: validationError.detail);
       return;
     }
 
-    if (state.files.isEmpty) {
-      showError("업로드된 HTML 파일이 없습니다.");
-      return;
-    }
-
-    // 일일 포스팅 제한 검사
+    final account = state.selectedAccount!;
     final postCount = state.files.length;
-    final remainingPosts = state.selectedAccountRemainingPosts;
-
-    if (remainingPosts <= 0) {
-      showError(
-        "일일 포스팅 한도 초과",
-        detail:
-            "오늘 이 계정으로 더 이상 포스팅할 수 없습니다.\n(일일 최대 ${UnifiedStorageService.maxDailyPosts}개)",
-      );
-      return;
-    }
-
-    if (postCount > remainingPosts) {
-      showError(
-        "포스팅 개수 초과",
-        detail:
-            "현재 ${postCount}개의 파일이 있지만, 오늘 포스팅 가능 개수는 ${remainingPosts}개입니다.\n파일을 ${remainingPosts}개 이하로 줄여주세요.",
-      );
-      return;
-    }
-
-    // 태그 중복 검사
-    final duplicatePaths = _findDuplicateTagFiles();
-    if (duplicatePaths.isNotEmpty) {
-      state = state.copyWith(duplicateTagFilePaths: duplicatePaths);
-      showError(
-        "중복된 태그가 있습니다",
-        detail:
-            "각 파일의 태그는 서로 중복되지 않아야 합니다.\n빨간색으로 표시된 ${duplicatePaths.length}개 파일을 확인해주세요.",
-      );
-      return;
-    }
 
     // 중복 없으면 초기화
-    state = state.copyWith(duplicateTagFilePaths: {}, isRunning: true);
+    state = state.copyWith(
+      duplicateTagFilePaths: {},
+      isRunning: true,
+      totalPosts: postCount,
+      currentPostIndex: 0,
+      progressMessage: '로그인 중...',
+    );
 
     String? tempStorageStatePath;
 
     try {
-      final paths = BundledNodeResolver.resolve();
-      final nodePath = paths.nodePath;
-      final runnerJsPath = paths.runnerJsPath;
-      final chromePath = paths.chromeExecutablePath;
-
-      // Chrome/Edge가 설치되어 있지 않으면 에러
-      if (chromePath == null) {
-        state = state.copyWith(isRunning: false);
-        showError(
-          "Chrome 또는 Edge 브라우저를 찾을 수 없습니다",
-          detail: "Google Chrome 또는 Microsoft Edge를 설치해주세요.",
-        );
-        return;
-      }
-
       // storageState를 임시 파일로 추출
       tempStorageStatePath = await UnifiedStorageService.extractStorageState(
         account,
       );
 
-      // storageState가 있으면 headless 모드, 없으면 브라우저 표시 (로그인 필요)
-      final hasStorageState = account.storageState != null &&
-          account.storageState!.isNotEmpty;
-
-      final payload = {
-        "type": "tistory_post",
-        "payload": {
-          "account": {
-            "id": account.kakaoId,
-            "pw": account.password,
-            "blogName": account.blogName,
-          },
-          "storageStatePath": tempStorageStatePath,
-          "posts": state.files
-              .map((f) => ({"htmlFilePath": f.path, "tags": f.tags}))
-              .toList(),
-          "options": {
-            "headless": hasStorageState,
-            "chromeExecutable": chromePath,
-          },
-        },
-      };
-
-      _runnerProc = await Process.start(
-        nodePath,
-        [runnerJsPath],
-        workingDirectory: Directory.current.path,
-        runInShell: false,
+      // 포스팅 실행
+      final result = await _runnerService.run(
+        account: account,
+        files: state.files,
+        storageStatePath: tempStorageStatePath,
+        onEvent: _handlePostingEvent,
       );
-
-      // ProcessManager에 등록하여 앱 종료 시에도 정리되도록 함
-      ProcessManager.instance.register(_runnerProc!);
-
-      // 진행 상태 초기화
-      state = state.copyWith(
-        totalPosts: postCount,
-        currentPostIndex: 0,
-        progressMessage: '로그인 중...',
-      );
-
-      _runnerProc!.stdin.writeln(jsonEncode(payload));
-      await _runnerProc!.stdin.flush();
-      await _runnerProc!.stdin.close();
-
-      bool hasError = false;
-
-      _runnerProc!.stdout
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .listen((line) {
-            _handleRunnerOutput(line);
-          });
-
-      _runnerProc!.stderr
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .listen((line) {
-            hasError = true;
-          });
-
-      final exitCode = await _runnerProc!.exitCode;
-      _runnerProc = null;
 
       // storageState를 다시 통합 파일로 가져오기
       await UnifiedStorageService.importStorageState(
@@ -293,8 +190,7 @@ class TistoryPostingController extends Notifier<TistoryPostingState> {
         tempStorageStatePath,
       );
 
-      if (exitCode == 0 && !hasError) {
-        // 포스팅 성공 - 카운트 증가
+      if (result.success) {
         await UnifiedStorageService.incrementPostCount(
           account.id,
           count: postCount,
@@ -302,65 +198,90 @@ class TistoryPostingController extends Notifier<TistoryPostingState> {
         await loadAccounts();
         showInfo("포스팅 완료!");
       } else {
-        showError("포스팅 중 오류가 발생했습니다.");
+        showError(result.errorMessage ?? "포스팅 중 오류가 발생했습니다.");
       }
-
-      // 진행 상태 초기화
-      state = state.copyWith(isRunning: false, clearProgress: true);
     } catch (e) {
-      // 에러 발생 시에도 storageState 가져오기 시도
       if (tempStorageStatePath != null) {
         await UnifiedStorageService.importStorageState(
           account.id,
           tempStorageStatePath,
         );
       }
-      state = state.copyWith(isRunning: false, clearProgress: true);
       showError("Posting Start Error", detail: "\n$e");
+    } finally {
+      state = state.copyWith(isRunning: false, clearProgress: true);
     }
   }
 
-  /// runner.js의 JSON 출력을 파싱하여 진행 상태를 업데이트합니다.
-  void _handleRunnerOutput(String line) {
-    try {
-      final json = jsonDecode(line) as Map<String, dynamic>;
-      final event = json['event'] as String?;
+  /// 포스팅 시작 전 유효성 검사를 수행합니다.
+  ({String message, String? detail})? _validateBeforeStart() {
+    final account = state.selectedAccount;
+    if (account == null) {
+      return (message: "계정을 선택해주세요.", detail: null);
+    }
 
-      switch (event) {
-        case 'progress':
-          final current = json['current'] as int? ?? 0;
-          final total = json['total'] as int? ?? 0;
-          final file = json['file'] as String?;
-          state = state.copyWith(
-            currentPostIndex: current,
-            totalPosts: total,
-            currentFileName: file,
-            progressMessage: null, // clear message when progress updates
-          );
-          break;
+    if (state.files.isEmpty) {
+      return (message: "업로드된 HTML 파일이 없습니다.", detail: null);
+    }
 
-        case 'log':
-          final message = json['message'] as String? ?? '';
-          if (message.contains('Request Login Auth')) {
-            showInfo('Kakao 로그인 인증 요청이 전송되었습니다.\n(Check Mobile Kakao Login)');
-          } else if (message.contains('Login step done')) {
-            state = state.copyWith(progressMessage: '포스팅 준비 중...');
-          } else if (message.contains('Headers created')) {
-            state = state.copyWith(progressMessage: '포스팅 시작...');
-          }
-          break;
+    // Chrome/Edge 설치 확인
+    if (_runnerService.chromeExecutablePath == null) {
+      return (
+        message: "Chrome 또는 Edge 브라우저를 찾을 수 없습니다",
+        detail: "Google Chrome 또는 Microsoft Edge를 설치해주세요.",
+      );
+    }
 
-        case 'done':
-          // 완료 처리는 exitCode에서 수행
-          break;
+    // 일일 포스팅 제한 검사
+    final postCount = state.files.length;
+    final remainingPosts = state.selectedAccountRemainingPosts;
 
-        case 'error':
-          final message = json['message'] as String? ?? '알 수 없는 오류';
-          showError('Runner 오류', detail: message);
-          break;
-      }
-    } catch (_) {
-      // JSON 파싱 실패 시 무시 (비 JSON 출력일 수 있음)
+    if (remainingPosts <= 0) {
+      return (
+        message: "일일 포스팅 한도 초과",
+        detail:
+            "오늘 이 계정으로 더 이상 포스팅할 수 없습니다.\n(일일 최대 ${UnifiedStorageService.maxDailyPosts}개)",
+      );
+    }
+
+    if (postCount > remainingPosts) {
+      return (
+        message: "포스팅 개수 초과",
+        detail:
+            "현재 $postCount개의 파일이 있지만, 오늘 포스팅 가능 개수는 $remainingPosts개입니다.\n파일을 $remainingPosts개 이하로 줄여주세요.",
+      );
+    }
+
+    // 태그 중복 검사
+    final duplicatePaths = _findDuplicateTagFiles();
+    if (duplicatePaths.isNotEmpty) {
+      state = state.copyWith(duplicateTagFilePaths: duplicatePaths);
+      return (
+        message: "중복된 태그가 있습니다",
+        detail:
+            "각 파일의 태그는 서로 중복되지 않아야 합니다.\n빨간색으로 표시된 ${duplicatePaths.length}개 파일을 확인해주세요.",
+      );
+    }
+
+    return null;
+  }
+
+  /// 포스팅 이벤트를 처리하여 상태를 업데이트합니다.
+  void _handlePostingEvent(PostingEvent event) {
+    switch (event) {
+      case PostingProgressEvent():
+        state = state.copyWith(
+          currentPostIndex: event.current,
+          totalPosts: event.total,
+          currentFileName: event.fileName,
+          progressMessage: null,
+        );
+      case PostingMessageEvent():
+        state = state.copyWith(progressMessage: event.message);
+      case PostingLoginAuthEvent():
+        showInfo('Kakao 로그인 인증 요청이 전송되었습니다.\n(Check Mobile Kakao Login)');
+      case PostingErrorEvent():
+        showError('Runner 오류', detail: event.message);
     }
   }
 
@@ -414,20 +335,11 @@ class TistoryPostingController extends Notifier<TistoryPostingState> {
   Future<void> cancel() async {
     if (!state.isRunning) return;
 
-    await disposeRunner();
+    await _runnerService.stop();
     state = state.copyWith(
       isRunning: false,
       clearProgress: true,
     );
     showInfo('포스팅이 취소되었습니다.');
-  }
-
-  Future<void> disposeRunner() async {
-    final proc = _runnerProc;
-    if (proc == null) return;
-
-    // ProcessManager를 통해 안전하게 종료
-    await ProcessManager.instance.killProcess(proc);
-    _runnerProc = null;
   }
 }
