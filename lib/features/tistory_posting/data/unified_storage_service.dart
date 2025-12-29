@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:csias_desktop/features/tistory_posting/data/secure_password_service.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_account.dart';
 
 /// 계정, storageState, 포스팅 기록을 하나의 파일로 통합 관리하는 서비스
@@ -53,9 +54,20 @@ class UnifiedStorageService {
       final Map<String, dynamic> json = jsonDecode(content);
       final List<dynamic> accountsJson = json['accounts'] ?? [];
 
-      return accountsJson
+      final accounts = accountsJson
           .map((a) => TistoryAccount.fromJson(a as Map<String, dynamic>))
           .toList();
+
+      // secure storage에서 비밀번호 불러오기
+      final List<TistoryAccount> accountsWithPasswords = [];
+      for (final account in accounts) {
+        final password = await SecurePasswordService.getPassword(account.id);
+        accountsWithPasswords.add(account.copyWith(
+          password: password ?? '',
+        ));
+      }
+
+      return accountsWithPasswords;
     } catch (e) {
       return [];
     }
@@ -71,12 +83,22 @@ class UnifiedStorageService {
   }
 
   static Future<void> addAccount(TistoryAccount account) async {
+    // 비밀번호를 secure storage에 저장
+    if (account.password.isNotEmpty) {
+      await SecurePasswordService.savePassword(account.id, account.password);
+    }
+
     final accounts = await loadAccounts();
     accounts.add(account);
     await saveAccounts(accounts);
   }
 
   static Future<void> updateAccount(TistoryAccount account) async {
+    // 비밀번호가 있으면 secure storage에 업데이트
+    if (account.password.isNotEmpty) {
+      await SecurePasswordService.savePassword(account.id, account.password);
+    }
+
     final accounts = await loadAccounts();
     final index = accounts.indexWhere((a) => a.id == account.id);
     if (index != -1) {
@@ -86,6 +108,9 @@ class UnifiedStorageService {
   }
 
   static Future<void> deleteAccount(String accountId) async {
+    // secure storage에서 비밀번호 삭제
+    await SecurePasswordService.deletePassword(accountId);
+
     final accounts = await loadAccounts();
     accounts.removeWhere((a) => a.id == accountId);
     await saveAccounts(accounts);
@@ -200,7 +225,10 @@ class UnifiedStorageService {
   /// 기존 데이터 마이그레이션 (accounts.json, posting_history.json, storageState 파일들)
   /// macOS에서만 수행됩니다. Windows에는 이전 데이터가 없습니다.
   static Future<void> migrateFromLegacy() async {
-    // Windows에서는 마이그레이션 스킵
+    // 1. 기존 app_data.json에서 평문 비밀번호 마이그레이션 (모든 플랫폼)
+    await _migratePasswordsToSecureStorage();
+
+    // Windows에서는 레거시 파일 마이그레이션 스킵
     if (!Platform.isMacOS) {
       return;
     }
@@ -208,13 +236,14 @@ class UnifiedStorageService {
     final home = Platform.environment['HOME'] ?? '';
     final legacyPath = '$home/Library/Application Support/csias_desktop/storageState';
 
-    // 이미 새 파일이 존재하면 마이그레이션 스킵
+    // 이미 새 파일이 존재하면 레거시 파일 마이그레이션 스킵
     final newFile = File(_filePath);
     if (await newFile.exists()) {
       return;
     }
 
     final List<TistoryAccount> migratedAccounts = [];
+    final Map<String, String> legacyPasswords = {};
 
     // 1. 기존 accounts.json 로드
     final accountsFile = File('$legacyPath/accounts.json');
@@ -224,7 +253,16 @@ class UnifiedStorageService {
         final List<dynamic> jsonList = jsonDecode(content);
 
         for (final json in jsonList) {
-          final account = TistoryAccount.fromJson(json as Map<String, dynamic>);
+          final jsonMap = json as Map<String, dynamic>;
+
+          // 평문 비밀번호 추출
+          final legacyPassword = TistoryAccount.extractLegacyPassword(jsonMap);
+          final account = TistoryAccount.fromJson(jsonMap);
+
+          if (legacyPassword != null && legacyPassword.isNotEmpty) {
+            legacyPasswords[account.id] = legacyPassword;
+          }
+
           migratedAccounts.add(account);
         }
       } catch (_) {}
@@ -267,9 +305,58 @@ class UnifiedStorageService {
       );
     }
 
-    // 4. 새 파일에 저장
+    // 4. 비밀번호를 secure storage에 저장
+    for (final entry in legacyPasswords.entries) {
+      await SecurePasswordService.savePassword(entry.key, entry.value);
+    }
+
+    // 5. 새 파일에 저장 (비밀번호 제외됨)
     if (migratedAccounts.isNotEmpty) {
       await saveAccounts(migratedAccounts);
     }
+  }
+
+  /// 기존 app_data.json에 평문 비밀번호가 있으면 secure storage로 마이그레이션
+  static Future<void> _migratePasswordsToSecureStorage() async {
+    try {
+      await _ensureDirectory();
+      final file = File(_filePath);
+
+      if (!await file.exists()) {
+        return;
+      }
+
+      final content = await file.readAsString();
+      final Map<String, dynamic> json = jsonDecode(content);
+      final List<dynamic> accountsJson = json['accounts'] ?? [];
+
+      bool hasMigrated = false;
+
+      for (final accountJson in accountsJson) {
+        final jsonMap = accountJson as Map<String, dynamic>;
+        final accountId = jsonMap['id'] as String?;
+        final legacyPassword = TistoryAccount.extractLegacyPassword(jsonMap);
+
+        if (accountId != null &&
+            legacyPassword != null &&
+            legacyPassword.isNotEmpty) {
+          // 이미 secure storage에 비밀번호가 있는지 확인
+          final hasSecurePassword =
+              await SecurePasswordService.hasPassword(accountId);
+
+          if (!hasSecurePassword) {
+            // secure storage에 비밀번호 저장
+            await SecurePasswordService.savePassword(accountId, legacyPassword);
+            hasMigrated = true;
+          }
+        }
+      }
+
+      // 마이그레이션 완료 후 JSON 파일에서 비밀번호 제거
+      if (hasMigrated) {
+        final accounts = await loadAccounts();
+        await saveAccounts(accounts);
+      }
+    } catch (_) {}
   }
 }
