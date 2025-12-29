@@ -9,15 +9,24 @@ import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_acc
 import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_state.dart';
 import 'package:path/path.dart' as p;
 import 'package:csias_desktop/features/tistory_posting/domain/models/upload_file_item.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class TistoryPostingController extends StateNotifier<TistoryPostingState> {
+class TistoryPostingController extends Notifier<TistoryPostingState> {
   Process? _runnerProc;
 
   static const _allowedExt = ['.html', '.htm'];
 
-  TistoryPostingController() : super(TistoryPostingState.initial()) {
+  @override
+  TistoryPostingState build() {
+    // Provider dispose 시 runner 정리
+    ref.onDispose(() {
+      disposeRunner();
+    });
+
+    // 초기화 (비동기)
     _init();
+
+    return TistoryPostingState.initial();
   }
 
   Future<void> _init() async {
@@ -420,11 +429,5 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     // ProcessManager를 통해 안전하게 종료
     await ProcessManager.instance.killProcess(proc);
     _runnerProc = null;
-  }
-
-  @override
-  void dispose() {
-    disposeRunner();
-    super.dispose();
   }
 }
