@@ -56,7 +56,7 @@ async function loginTistory(context, page, { id, pw, storageStatePath }) {
     }
 
     while (!page.url().includes("www.tistory.com/")) {
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(100);
     }
 
     // storageState 저장 전 디렉토리 생성
@@ -73,7 +73,7 @@ async function loginTistory(context, page, { id, pw, storageStatePath }) {
   emit({ event: "log", message: "Login step done (verify selectors)" });
 }
 
-async function createPostHeaders(context, page, blogName) {
+async function createPostHeaders(page, blogName) {
   const userAgent = await page.evaluate(() => navigator.userAgent);
   const fullDomain = `${blogName}.tistory.com`;
 
@@ -142,7 +142,18 @@ async function routeTistoryPost(payload) {
   // 동기 방식으로 파일 존재 여부 확인
   const realStorageState = fs.existsSync(storageStatePath) ? storageStatePath : undefined;
 
-  const browser = await chromium.launch({ headless: headless, executablePath: executablePath });
+  const browser = await chromium.launch({
+    headless: headless,
+    executablePath: executablePath,
+    args: [
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-infobars',
+    ],
+  });
   const context = await browser.newContext(realStorageState ? { storageState: realStorageState } : {});
   const page = await context.newPage();
   await page.waitForLoadState("domcontentloaded");
@@ -154,7 +165,7 @@ async function routeTistoryPost(payload) {
       storageStatePath: storageStatePath,
     });
 
-    const headers = await createPostHeaders(context, page, account.blogName);
+    const headers = await createPostHeaders(page, account.blogName);
     emit({ event: "log", message: "Extracted headers" });
 
     for (let i = 0; i < posts.length; i++) {
@@ -182,8 +193,20 @@ async function routeTistoryPost(payload) {
 
     emit({ event: "done", message: "All posts processed." });
   } finally {
+    // 브라우저 종료 전 잠시 대기 (macOS Dock 정리용)
+    await delay(500);
+
+    // 모든 페이지 닫기
+    const pages = context.pages();
+    for (const p of pages) {
+      await p.close().catch(() => {});
+    }
+
     await context.close().catch(() => {});
     await browser.close().catch(() => {});
+
+    // 브라우저 프로세스 완전 종료 대기
+    await delay(300);
   }
 }
 

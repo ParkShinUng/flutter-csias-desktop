@@ -4,14 +4,12 @@ class BundledNodePaths {
   final String nodePath;
   final String runnerJsPath;
   final String workingDir;
-  final String storageStateDir;
   final String? chromeExecutablePath;
 
   BundledNodePaths({
     required this.nodePath,
     required this.runnerJsPath,
     required this.workingDir,
-    required this.storageStateDir,
     this.chromeExecutablePath,
   });
 }
@@ -35,11 +33,6 @@ class BundledNodeResolver {
     final appDir = Directory(exePath).parent.parent.path;
     final assetDir = '$appDir/Frameworks/App.framework/Resources/flutter_assets/assets';
 
-    // ~/Library/Application Support/csias_desktop/storageState
-    final home = Platform.environment['HOME'] ?? '';
-    final storageStateDir = '$home/Library/Application Support/csias_desktop/storageState';
-    _ensureDirectoryExists(storageStateDir);
-
     final nodePath = '$assetDir/bin/macos/node-darwin-x64-darwin-arm64';
     final runnerJsPath = '$assetDir/runner/runner.js';
 
@@ -50,7 +43,6 @@ class BundledNodeResolver {
       nodePath: nodePath,
       runnerJsPath: runnerJsPath,
       workingDir: assetDir,
-      storageStateDir: storageStateDir,
       chromeExecutablePath: chromePath,
     );
   }
@@ -63,11 +55,6 @@ class BundledNodeResolver {
     final appDir = Directory(exePath).parent.path;
     final assetDir = '$appDir\\data\\flutter_assets\\assets';
 
-    // %APPDATA%\csias_desktop\storageState
-    final appData = Platform.environment['APPDATA'] ?? '';
-    final storageStateDir = '$appData\\csias_desktop\\storageState';
-    _ensureDirectoryExists(storageStateDir);
-
     final nodePath = '$assetDir\\bin\\windows\\node.exe';
     final runnerJsPath = '$assetDir\\runner\\runner.js';
 
@@ -78,7 +65,6 @@ class BundledNodeResolver {
       nodePath: nodePath,
       runnerJsPath: runnerJsPath,
       workingDir: assetDir,
-      storageStateDir: storageStateDir,
       chromeExecutablePath: chromePath,
     );
   }
@@ -126,12 +112,5 @@ class BundledNodeResolver {
     }
 
     return null;
-  }
-
-  static void _ensureDirectoryExists(String path) {
-    final dir = Directory(path);
-    if (!dir.existsSync()) {
-      dir.createSync(recursive: true);
-    }
   }
 }

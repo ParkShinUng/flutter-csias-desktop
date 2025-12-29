@@ -229,17 +229,16 @@ class UnifiedStorageService {
   /* ========================= Storage State ========================= */
 
   /// 계정의 storageState를 임시 파일로 추출 (runner 실행 전)
+  /// storageState가 없으면 파일을 생성하지 않고 경로만 반환합니다.
   static Future<String> extractStorageState(TistoryAccount account) async {
-    await _ensureDirectory();
     final separator = Platform.isWindows ? '\\' : '/';
     final tempPath = '$storagePath${separator}temp_${account.id}.storageState.json';
-    final file = File(tempPath);
 
-    if (account.storageState != null) {
+    // storageState가 있을 때만 파일 생성
+    if (account.storageState != null && account.storageState!.isNotEmpty) {
+      await _ensureDirectory();
+      final file = File(tempPath);
       await file.writeAsString(jsonEncode(account.storageState));
-    } else {
-      // storageState가 없으면 빈 객체 생성
-      await file.writeAsString('{}');
     }
 
     return tempPath;
@@ -417,6 +416,26 @@ class UnifiedStorageService {
         '레거시 마이그레이션 완료: ${migratedAccounts.length}개 계정',
         tag: 'Migration',
       );
+    }
+
+    // 6. 레거시 폴더 삭제 (비어있으면)
+    await _cleanupLegacyFolder(legacyPath);
+  }
+
+  /// 레거시 폴더가 비어있으면 삭제합니다.
+  static Future<void> _cleanupLegacyFolder(String legacyPath) async {
+    try {
+      final dir = Directory(legacyPath);
+      if (!await dir.exists()) return;
+
+      final contents = await dir.list().toList();
+      if (contents.isEmpty) {
+        await dir.delete();
+        AppLogger.debug('레거시 폴더 삭제 완료: $legacyPath', tag: 'Migration');
+      }
+    } catch (e) {
+      // 삭제 실패해도 무시
+      AppLogger.debug('레거시 폴더 삭제 실패: $e', tag: 'Migration');
     }
   }
 
