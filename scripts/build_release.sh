@@ -37,6 +37,9 @@ cp -R "$BUILD_DIR/$APP_NAME.app" "$DMG_STAGING/"
 cp "$INSTALLER_SCRIPT" "$DMG_STAGING/설치.command"
 chmod +x "$DMG_STAGING/설치.command"
 
+# Remove quarantine attributes from all files
+xattr -cr "$DMG_STAGING"
+
 # 4. Create output directory
 echo ""
 echo "[4/5] Creating output directory..."
@@ -67,6 +70,9 @@ echo ""
 echo "사용자 안내문:"
 echo "----------------------------------------"
 echo "1. DMG 파일 열기"
-echo "2. '설치.command' 더블클릭"
-echo "3. 터미널이 열리면 자동 설치 진행"
+echo "2. '설치.command' 우클릭 → '열기' 선택"
+echo "3. 경고창에서 '열기' 클릭"
+echo "4. 터미널이 열리면 자동 설치 진행"
+echo ""
+echo "※ 보안 경고가 나타나면 우클릭으로 열어야 합니다"
 echo "----------------------------------------"
