@@ -81,11 +81,15 @@ class AccountSelectorBar extends StatelessWidget {
                             ),
                           ),
                           if (selectedAccount != null)
-                            Text(
-                              '${selectedAccount.blogName} · $remainingPosts / ${UnifiedStorageService.maxDailyPosts}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: scheme.onSurfaceVariant,
+                            Tooltip(
+                              message: '일일 포스팅 한도 (자정 00:00 리셋)',
+                              child: Text(
+                                '${selectedAccount.blogName} · $remainingPosts/${UnifiedStorageService.maxDailyPosts}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                         ],
@@ -142,11 +146,14 @@ class AccountSelectorBar extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          Text(
-                            '$accountRemaining/${UnifiedStorageService.maxDailyPosts}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: scheme.onSurfaceVariant,
+                          Tooltip(
+                            message: '자정 00:00 리셋',
+                            child: Text(
+                              '$accountRemaining/${UnifiedStorageService.maxDailyPosts}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: scheme.onSurfaceVariant,
+                              ),
                             ),
                           ),
                         ],

@@ -240,7 +240,7 @@ class TistoryPostingController extends Notifier<TistoryPostingState> {
       return (
         message: "일일 포스팅 한도 초과",
         detail:
-            "오늘 이 계정으로 더 이상 포스팅할 수 없습니다.\n(일일 최대 ${UnifiedStorageService.maxDailyPosts}개)",
+            "오늘 이 계정으로 더 이상 포스팅할 수 없습니다.\n(일일 최대 ${UnifiedStorageService.maxDailyPosts}개, 자정 00:00 리셋)",
       );
     }
 
