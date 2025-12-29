@@ -1,5 +1,6 @@
 import 'package:csias_desktop/core/extensions/build_context_extensions.dart';
 import 'package:csias_desktop/core/ui/app_message_dialog.dart';
+import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_controller.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_provider.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_state.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/widgets/account_management_dialog.dart';
@@ -80,7 +81,8 @@ class TistoryPostingPage extends ConsumerWidget {
                               ],
                               if (state.files.isNotEmpty && !state.isRunning)
                                 TextButton.icon(
-                                  onPressed: controller.clearFiles,
+                                  onPressed: () =>
+                                      _confirmClearFiles(context, controller),
                                   icon: const Icon(Icons.delete_outline),
                                   label: const Text("전체 초기화"),
                                 ),
@@ -94,7 +96,8 @@ class TistoryPostingPage extends ConsumerWidget {
                                     icon: const Icon(Icons.stop),
                                     label: const Text("취소"),
                                     style: OutlinedButton.styleFrom(
-                                      foregroundColor: context.colorScheme.error,
+                                      foregroundColor:
+                                          context.colorScheme.error,
                                       side: BorderSide(
                                         color: context.colorScheme.error,
                                       ),
@@ -106,7 +109,8 @@ class TistoryPostingPage extends ConsumerWidget {
                               SizedBox(
                                 height: 40,
                                 child: FilledButton.icon(
-                                  onPressed: (state.isRunning ||
+                                  onPressed:
+                                      (state.isRunning ||
                                           state.accounts.isEmpty ||
                                           state.selectedAccountId == null ||
                                           state.files.isEmpty)
@@ -121,7 +125,9 @@ class TistoryPostingPage extends ConsumerWidget {
                                           ),
                                         )
                                       : const Icon(Icons.play_arrow),
-                                  label: Text(state.isRunning ? "실행 중" : "포스팅 시작"),
+                                  label: Text(
+                                    state.isRunning ? "실행 중" : "포스팅 시작",
+                                  ),
                                 ),
                               ),
                             ],
@@ -147,7 +153,8 @@ class TistoryPostingPage extends ConsumerWidget {
                                           children: [
                                             Text(
                                               "총 ${state.files.length}개",
-                                              style: context.textTheme.bodyMedium,
+                                              style:
+                                                  context.textTheme.bodyMedium,
                                             ),
                                           ],
                                         ),
@@ -161,7 +168,9 @@ class TistoryPostingPage extends ConsumerWidget {
                                                 state.duplicateTagFilePaths,
                                             onSubmitTags: (filePath, tags) {
                                               controller.addTagsToFile(
-                                                  filePath, tags);
+                                                filePath,
+                                                tags,
+                                              );
                                             },
                                             onRemoveFile: (filePath) {
                                               controller.removeFile(filePath);
@@ -191,7 +200,37 @@ class TistoryPostingPage extends ConsumerWidget {
     showAccountManagementDialog(context);
   }
 
-  Widget _buildProgressIndicator(BuildContext context, TistoryPostingState state) {
+  Future<void> _confirmClearFiles(
+    BuildContext context,
+    TistoryPostingController controller,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('전체 초기화'),
+        content: const Text('모든 파일과 태그 정보를 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      controller.clearFiles();
+    }
+  }
+
+  Widget _buildProgressIndicator(
+    BuildContext context,
+    TistoryPostingState state,
+  ) {
     final progressPercent = state.progressPercent;
     final progressText = state.progressText;
     final currentFileName = state.currentFileName;
