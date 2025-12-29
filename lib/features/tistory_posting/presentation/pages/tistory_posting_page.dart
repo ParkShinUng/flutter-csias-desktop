@@ -1,3 +1,4 @@
+import 'package:csias_desktop/core/extensions/build_context_extensions.dart';
 import 'package:csias_desktop/core/ui/app_message_dialog.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_provider.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_state.dart';
@@ -69,7 +70,7 @@ class TistoryPostingPage extends ConsumerWidget {
                             children: [
                               Text(
                                 "파일 & 태그",
-                                style: Theme.of(context).textTheme.titleMedium,
+                                style: context.textTheme.titleMedium,
                               ),
                               const Spacer(),
                               // 진행 상태 표시
@@ -93,9 +94,9 @@ class TistoryPostingPage extends ConsumerWidget {
                                     icon: const Icon(Icons.stop),
                                     label: const Text("취소"),
                                     style: OutlinedButton.styleFrom(
-                                      foregroundColor: Theme.of(context).colorScheme.error,
+                                      foregroundColor: context.colorScheme.error,
                                       side: BorderSide(
-                                        color: Theme.of(context).colorScheme.error,
+                                        color: context.colorScheme.error,
                                       ),
                                     ),
                                   ),
@@ -146,9 +147,7 @@ class TistoryPostingPage extends ConsumerWidget {
                                           children: [
                                             Text(
                                               "총 ${state.files.length}개",
-                                              style: Theme.of(
-                                                context,
-                                              ).textTheme.bodyMedium,
+                                              style: context.textTheme.bodyMedium,
                                             ),
                                           ],
                                         ),
@@ -193,7 +192,6 @@ class TistoryPostingPage extends ConsumerWidget {
   }
 
   Widget _buildProgressIndicator(BuildContext context, TistoryPostingState state) {
-    final theme = Theme.of(context);
     final progressPercent = state.progressPercent;
     final progressText = state.progressText;
     final currentFileName = state.currentFileName;
@@ -213,14 +211,14 @@ class TistoryPostingPage extends ConsumerWidget {
                 child: LinearProgressIndicator(
                   value: progressPercent > 0 ? progressPercent : null,
                   minHeight: 6,
-                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                  backgroundColor: context.colorScheme.surfaceContainerHighest,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 progressText,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                style: context.textTheme.bodySmall?.copyWith(
+                  color: context.colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -233,8 +231,8 @@ class TistoryPostingPage extends ConsumerWidget {
             constraints: const BoxConstraints(maxWidth: 200),
             child: Text(
               currentFileName,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.primary,
+              style: context.textTheme.bodySmall?.copyWith(
+                color: context.colorScheme.primary,
               ),
               overflow: TextOverflow.ellipsis,
             ),

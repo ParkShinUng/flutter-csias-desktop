@@ -1,3 +1,4 @@
+import 'package:csias_desktop/core/extensions/build_context_extensions.dart';
 import 'package:csias_desktop/core/theme/app_spacing.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -40,7 +41,7 @@ class _DropZoneState extends State<DropZone> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = context.colorScheme;
 
     final borderColor = _isDragging
         ? scheme.primary
@@ -86,19 +87,19 @@ class _DropZoneState extends State<DropZone> {
                             ? "여기에 놓으면 추가됩니다"
                             : "Drag & Drop 또는 클릭해서 파일 선택",
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.titleMedium,
+                        style: context.textTheme.titleMedium,
                       ),
                       const SizedBox(height: 6),
                       Text(
                         ".html / .htm 파일만 허용",
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: context.textTheme.bodySmall,
                       ),
                       const SizedBox(height: 10),
                       Text(
                         "선택됨: ${widget.fileCount}개",
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: context.textTheme.bodySmall,
                       ),
                     ],
                   ),

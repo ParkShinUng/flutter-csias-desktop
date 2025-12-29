@@ -1,4 +1,6 @@
+import 'package:csias_desktop/core/extensions/build_context_extensions.dart';
 import 'package:csias_desktop/core/theme/app_spacing.dart';
+import 'package:csias_desktop/core/widgets/password_text_field.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_account.dart';
 import 'package:csias_desktop/features/tistory_posting/presentation/state/tistory_posting_provider.dart';
 import 'package:flutter/material.dart';
@@ -15,8 +17,6 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
   String? _editingId;
   bool _isAdding = false;
   bool _hasKoreanInPassword = false;
-  bool _obscurePassword = true;
-  bool _obscurePasswordConfirm = true;
   bool _passwordMismatch = false;
 
   final _idController = TextEditingController();
@@ -66,8 +66,6 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
       _pwController.clear();
       _pwConfirmController.clear();
       _blogController.clear();
-      _obscurePassword = true;
-      _obscurePasswordConfirm = true;
       _hasKoreanInPassword = false;
       _passwordMismatch = false;
     });
@@ -81,8 +79,6 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
       _pwController.text = account.password;
       _pwConfirmController.text = account.password;
       _blogController.text = account.blogName;
-      _obscurePassword = true;
-      _obscurePasswordConfirm = true;
       _hasKoreanInPassword = false;
       _passwordMismatch = false;
     });
@@ -94,8 +90,6 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
       _editingId = null;
       _hasKoreanInPassword = false;
       _passwordMismatch = false;
-      _obscurePassword = true;
-      _obscurePasswordConfirm = true;
       _idController.clear();
       _pwController.clear();
       _pwConfirmController.clear();
@@ -174,7 +168,7 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = context.colorScheme;
     final accounts = ref.watch(tistoryPostingProvider).accounts;
 
     return Dialog(
@@ -191,7 +185,7 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
               children: [
                 Text(
                   '계정 관리',
-                  style: Theme.of(context).textTheme.headlineSmall,
+                  style: context.textTheme.headlineSmall,
                 ),
                 const Spacer(),
                 IconButton(
@@ -292,7 +286,7 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
           children: [
             Text(
               account == null ? '새 계정 추가' : '계정 수정',
-              style: Theme.of(context).textTheme.titleMedium,
+              style: context.textTheme.titleMedium,
             ),
             const SizedBox(height: AppSpacing.s12),
             TextField(
@@ -303,68 +297,16 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
               ),
             ),
             const SizedBox(height: AppSpacing.s12),
-            TextField(
+            PasswordTextField(
               controller: _pwController,
-              obscureText: _obscurePassword,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                isDense: true,
-                errorText: _hasKoreanInPassword ? '영문, 숫자, 특수문자만 입력 가능합니다' : null,
-                errorBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.red, width: 1.5),
-                ),
-                focusedErrorBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.red, width: 2),
-                ),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined,
-                    size: 20,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _obscurePassword = !_obscurePassword;
-                    });
-                  },
-                  tooltip: _obscurePassword ? '비밀번호 표시' : '비밀번호 숨기기',
-                ),
-              ),
+              labelText: 'Password',
+              errorText: _hasKoreanInPassword ? '영문, 숫자, 특수문자만 입력 가능합니다' : null,
             ),
             const SizedBox(height: AppSpacing.s12),
-            TextField(
+            PasswordTextField(
               controller: _pwConfirmController,
-              obscureText: _obscurePasswordConfirm,
-              decoration: InputDecoration(
-                labelText: 'Password 확인',
-                isDense: true,
-                errorText: _passwordMismatch ? '비밀번호가 일치하지 않습니다' : null,
-                errorBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.red, width: 1.5),
-                ),
-                focusedErrorBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.red, width: 2),
-                ),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePasswordConfirm
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined,
-                    size: 20,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _obscurePasswordConfirm = !_obscurePasswordConfirm;
-                    });
-                  },
-                  tooltip: _obscurePasswordConfirm ? '비밀번호 표시' : '비밀번호 숨기기',
-                ),
-              ),
+              labelText: 'Password 확인',
+              errorText: _passwordMismatch ? '비밀번호가 일치하지 않습니다' : null,
             ),
             const SizedBox(height: AppSpacing.s12),
             TextField(

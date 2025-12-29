@@ -1,3 +1,4 @@
+import 'package:csias_desktop/core/extensions/build_context_extensions.dart';
 import 'package:csias_desktop/core/theme/app_spacing.dart';
 import 'package:csias_desktop/features/tistory_posting/data/unified_storage_service.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_account.dart';
@@ -25,7 +26,7 @@ class AccountSelectorBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = context.colorScheme;
     final selectedAccount = accounts
         .where((a) => a.id == selectedAccountId)
         .firstOrNull;

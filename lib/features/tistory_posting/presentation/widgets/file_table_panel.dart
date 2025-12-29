@@ -1,3 +1,4 @@
+import 'package:csias_desktop/core/extensions/build_context_extensions.dart';
 import 'package:csias_desktop/core/theme/app_spacing.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/upload_file_item.dart';
 import 'package:flutter/material.dart';
@@ -23,7 +24,7 @@ class FileTablePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = context.colorScheme;
 
     return Column(
       children: [
@@ -131,7 +132,7 @@ class _FileTableRowState extends State<_FileTableRow> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = context.colorScheme;
     final isDup = widget.isDuplicate;
 
     return Container(
