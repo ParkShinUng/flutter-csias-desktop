@@ -167,3 +167,4 @@ app.*.symbols
 /assets/runner/node_modules/
 /dist/csias_desktop.dmg
 /assets/bin/macos/node-darwin-x64-darwin-arm64
+/assets/bin/windows/node.exe
