@@ -72,11 +72,14 @@ class TistoryPostingPage extends ConsumerWidget {
                                 style: Theme.of(context).textTheme.titleMedium,
                               ),
                               const Spacer(),
-                              if (state.files.isNotEmpty)
+                              // 진행 상태 표시
+                              if (state.isRunning) ...[
+                                _buildProgressIndicator(context, state),
+                                const SizedBox(width: AppSpacing.s16),
+                              ],
+                              if (state.files.isNotEmpty && !state.isRunning)
                                 TextButton.icon(
-                                  onPressed: state.isRunning
-                                      ? null
-                                      : controller.clearFiles,
+                                  onPressed: controller.clearFiles,
                                   icon: const Icon(Icons.delete_outline),
                                   label: const Text("전체 초기화"),
                                 ),
@@ -169,5 +172,57 @@ class TistoryPostingPage extends ConsumerWidget {
 
   void _showAccountManagement(BuildContext context) {
     showAccountManagementDialog(context);
+  }
+
+  Widget _buildProgressIndicator(BuildContext context, TistoryPostingState state) {
+    final theme = Theme.of(context);
+    final progressPercent = state.progressPercent;
+    final progressText = state.progressText;
+    final currentFileName = state.currentFileName;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 진행률 바
+        SizedBox(
+          width: 120,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: progressPercent > 0 ? progressPercent : null,
+                  minHeight: 6,
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                progressText,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+        // 현재 파일명 표시
+        if (currentFileName != null) ...[
+          const SizedBox(width: AppSpacing.s12),
+          Container(
+            constraints: const BoxConstraints(maxWidth: 200),
+            child: Text(
+              currentFileName,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ],
+    );
   }
 }

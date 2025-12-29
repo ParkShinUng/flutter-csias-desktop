@@ -19,6 +19,12 @@ class TistoryPostingState {
   // 계정별 오늘 포스팅 수 (accountId -> count)
   final Map<String, int> todayPostCounts;
 
+  // 포스팅 진행 상태
+  final int currentPostIndex; // 현재 처리 중인 포스트 인덱스 (1부터 시작)
+  final int totalPosts; // 전체 포스트 수
+  final String? currentFileName; // 현재 처리 중인 파일명
+  final String? progressMessage; // 진행 상태 메시지 (예: "로그인 중...")
+
   const TistoryPostingState({
     required this.accounts,
     required this.selectedAccountId,
@@ -28,6 +34,10 @@ class TistoryPostingState {
     this.uiMessage,
     this.duplicateTagFilePaths = const {},
     this.todayPostCounts = const {},
+    this.currentPostIndex = 0,
+    this.totalPosts = 0,
+    this.currentFileName,
+    this.progressMessage,
   });
 
   factory TistoryPostingState.initial() => const TistoryPostingState(
@@ -58,6 +68,22 @@ class TistoryPostingState {
     return UnifiedStorageService.maxDailyPosts - selectedAccountTodayPosts;
   }
 
+  /// 진행률 (0.0 ~ 1.0)
+  double get progressPercent {
+    if (totalPosts == 0) return 0.0;
+    return currentPostIndex / totalPosts;
+  }
+
+  /// 진행 상태 텍스트 (예: "3/10 업로드 중...")
+  String get progressText {
+    if (!isRunning) return '';
+    if (progressMessage != null) return progressMessage!;
+    if (currentPostIndex > 0 && totalPosts > 0) {
+      return '$currentPostIndex / $totalPosts 포스팅 중...';
+    }
+    return '준비 중...';
+  }
+
   TistoryPostingState copyWith({
     List<TistoryAccount>? accounts,
     String? selectedAccountId,
@@ -69,6 +95,11 @@ class TistoryPostingState {
     bool clearUiMessage = false,
     Set<String>? duplicateTagFilePaths,
     Map<String, int>? todayPostCounts,
+    int? currentPostIndex,
+    int? totalPosts,
+    String? currentFileName,
+    String? progressMessage,
+    bool clearProgress = false,
   }) {
     return TistoryPostingState(
       accounts: accounts ?? this.accounts,
@@ -79,6 +110,10 @@ class TistoryPostingState {
       uiMessage: clearUiMessage ? null : (uiMessage ?? this.uiMessage),
       duplicateTagFilePaths: duplicateTagFilePaths ?? this.duplicateTagFilePaths,
       todayPostCounts: todayPostCounts ?? this.todayPostCounts,
+      currentPostIndex: clearProgress ? 0 : (currentPostIndex ?? this.currentPostIndex),
+      totalPosts: clearProgress ? 0 : (totalPosts ?? this.totalPosts),
+      currentFileName: clearProgress ? null : (currentFileName ?? this.currentFileName),
+      progressMessage: clearProgress ? null : (progressMessage ?? this.progressMessage),
     );
   }
 }

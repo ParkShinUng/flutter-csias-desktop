@@ -248,6 +248,13 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
       // ProcessManager에 등록하여 앱 종료 시에도 정리되도록 함
       ProcessManager.instance.register(_runnerProc!);
 
+      // 진행 상태 초기화
+      state = state.copyWith(
+        totalPosts: postCount,
+        currentPostIndex: 0,
+        progressMessage: '로그인 중...',
+      );
+
       _runnerProc!.stdin.writeln(jsonEncode(payload));
       await _runnerProc!.stdin.flush();
       await _runnerProc!.stdin.close();
@@ -258,12 +265,7 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .listen((line) {
-            if (line.contains("All posts processed.")) {
-              // 포스팅 완료 - 카운트 증가는 exitCode 후에 처리
-              showInfo("포스팅 완료!");
-            } else if (line.contains("Request Login Auth")) {
-              showInfo("Kakao 로그인 인증 요청이 전송되었습니다.\n(Check Mobile Kakao Login)");
-            }
+            _handleRunnerOutput(line);
           });
 
       _runnerProc!.stderr
@@ -289,11 +291,13 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
           count: postCount,
         );
         await loadAccounts();
+        showInfo("포스팅 완료!");
       } else {
         showError("포스팅 중 오류가 발생했습니다.");
       }
 
-      state = state.copyWith(isRunning: false);
+      // 진행 상태 초기화
+      state = state.copyWith(isRunning: false, clearProgress: true);
     } catch (e) {
       // 에러 발생 시에도 storageState 가져오기 시도
       if (tempStorageStatePath != null) {
@@ -302,8 +306,52 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
           tempStorageStatePath,
         );
       }
-      state = state.copyWith(isRunning: false);
+      state = state.copyWith(isRunning: false, clearProgress: true);
       showError("Posting Start Error", detail: "\n$e");
+    }
+  }
+
+  /// runner.js의 JSON 출력을 파싱하여 진행 상태를 업데이트합니다.
+  void _handleRunnerOutput(String line) {
+    try {
+      final json = jsonDecode(line) as Map<String, dynamic>;
+      final event = json['event'] as String?;
+
+      switch (event) {
+        case 'progress':
+          final current = json['current'] as int? ?? 0;
+          final total = json['total'] as int? ?? 0;
+          final file = json['file'] as String?;
+          state = state.copyWith(
+            currentPostIndex: current,
+            totalPosts: total,
+            currentFileName: file,
+            progressMessage: null, // clear message when progress updates
+          );
+          break;
+
+        case 'log':
+          final message = json['message'] as String? ?? '';
+          if (message.contains('Request Login Auth')) {
+            showInfo('Kakao 로그인 인증 요청이 전송되었습니다.\n(Check Mobile Kakao Login)');
+          } else if (message.contains('Login step done')) {
+            state = state.copyWith(progressMessage: '포스팅 준비 중...');
+          } else if (message.contains('Headers created')) {
+            state = state.copyWith(progressMessage: '포스팅 시작...');
+          }
+          break;
+
+        case 'done':
+          // 완료 처리는 exitCode에서 수행
+          break;
+
+        case 'error':
+          final message = json['message'] as String? ?? '알 수 없는 오류';
+          showError('Runner 오류', detail: message);
+          break;
+      }
+    } catch (_) {
+      // JSON 파싱 실패 시 무시 (비 JSON 출력일 수 있음)
     }
   }
 
