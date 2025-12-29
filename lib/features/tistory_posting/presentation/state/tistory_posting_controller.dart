@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:csias_desktop/core/runner/bundled_node_resolver.dart';
+import 'package:csias_desktop/core/runner/process_manager.dart';
 import 'package:csias_desktop/core/ui/ui_message.dart';
 import 'package:csias_desktop/features/tistory_posting/data/unified_storage_service.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/tistory_account.dart';
@@ -234,6 +235,9 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
         runInShell: false,
       );
 
+      // ProcessManager에 등록하여 앱 종료 시에도 정리되도록 함
+      ProcessManager.instance.register(_runnerProc!);
+
       _runnerProc!.stdin.writeln(jsonEncode(payload));
       await _runnerProc!.stdin.flush();
       await _runnerProc!.stdin.close();
@@ -340,16 +344,11 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
   }
 
   Future<void> disposeRunner() async {
-    final p = _runnerProc;
-    if (p == null) return;
+    final proc = _runnerProc;
+    if (proc == null) return;
 
-    p.kill(ProcessSignal.sigterm);
-
-    await Future.delayed(const Duration(milliseconds: 600));
-    if (_runnerProc != null) {
-      _runnerProc!.kill(ProcessSignal.sigkill);
-    }
-
+    // ProcessManager를 통해 안전하게 종료
+    await ProcessManager.instance.killProcess(proc);
     _runnerProc = null;
   }
 

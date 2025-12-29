@@ -15,9 +15,13 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
   String? _editingId;
   bool _isAdding = false;
   bool _hasKoreanInPassword = false;
+  bool _obscurePassword = true;
+  bool _obscurePasswordConfirm = true;
+  bool _passwordMismatch = false;
 
   final _idController = TextEditingController();
   final _pwController = TextEditingController();
+  final _pwConfirmController = TextEditingController();
   final _blogController = TextEditingController();
 
   static final _koreanRegex = RegExp(r'[ㄱ-ㅎㅏ-ㅣ가-힣]');
@@ -25,23 +29,31 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
   @override
   void initState() {
     super.initState();
-    _pwController.addListener(_checkKoreanInPassword);
+    _pwController.addListener(_validatePassword);
+    _pwConfirmController.addListener(_validatePassword);
   }
 
-  void _checkKoreanInPassword() {
+  void _validatePassword() {
     final hasKorean = _koreanRegex.hasMatch(_pwController.text);
-    if (hasKorean != _hasKoreanInPassword) {
+    final mismatch = _pwController.text.isNotEmpty &&
+        _pwConfirmController.text.isNotEmpty &&
+        _pwController.text != _pwConfirmController.text;
+
+    if (hasKorean != _hasKoreanInPassword || mismatch != _passwordMismatch) {
       setState(() {
         _hasKoreanInPassword = hasKorean;
+        _passwordMismatch = mismatch;
       });
     }
   }
 
   @override
   void dispose() {
-    _pwController.removeListener(_checkKoreanInPassword);
+    _pwController.removeListener(_validatePassword);
+    _pwConfirmController.removeListener(_validatePassword);
     _idController.dispose();
     _pwController.dispose();
+    _pwConfirmController.dispose();
     _blogController.dispose();
     super.dispose();
   }
@@ -52,7 +64,12 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
       _editingId = null;
       _idController.clear();
       _pwController.clear();
+      _pwConfirmController.clear();
       _blogController.clear();
+      _obscurePassword = true;
+      _obscurePasswordConfirm = true;
+      _hasKoreanInPassword = false;
+      _passwordMismatch = false;
     });
   }
 
@@ -62,7 +79,12 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
       _editingId = account.id;
       _idController.text = account.kakaoId;
       _pwController.text = account.password;
+      _pwConfirmController.text = account.password;
       _blogController.text = account.blogName;
+      _obscurePassword = true;
+      _obscurePasswordConfirm = true;
+      _hasKoreanInPassword = false;
+      _passwordMismatch = false;
     });
   }
 
@@ -71,8 +93,12 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
       _isAdding = false;
       _editingId = null;
       _hasKoreanInPassword = false;
+      _passwordMismatch = false;
+      _obscurePassword = true;
+      _obscurePasswordConfirm = true;
       _idController.clear();
       _pwController.clear();
+      _pwConfirmController.clear();
       _blogController.clear();
     });
   }
@@ -80,13 +106,21 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
   Future<void> _save() async {
     final kakaoId = _idController.text.trim();
     final password = _pwController.text.trim();
+    final passwordConfirm = _pwConfirmController.text.trim();
     final blogName = _blogController.text.trim();
 
-    if (kakaoId.isEmpty || password.isEmpty || blogName.isEmpty) {
+    if (kakaoId.isEmpty || password.isEmpty || passwordConfirm.isEmpty || blogName.isEmpty) {
       return;
     }
 
     if (_hasKoreanInPassword) {
+      return;
+    }
+
+    if (password != passwordConfirm) {
+      setState(() {
+        _passwordMismatch = true;
+      });
       return;
     }
 
@@ -271,6 +305,7 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
             const SizedBox(height: AppSpacing.s12),
             TextField(
               controller: _pwController,
+              obscureText: _obscurePassword,
               decoration: InputDecoration(
                 labelText: 'Password',
                 isDense: true,
@@ -282,6 +317,52 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
                 focusedErrorBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(color: Colors.red, width: 2),
+                ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscurePassword = !_obscurePassword;
+                    });
+                  },
+                  tooltip: _obscurePassword ? '비밀번호 표시' : '비밀번호 숨기기',
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.s12),
+            TextField(
+              controller: _pwConfirmController,
+              obscureText: _obscurePasswordConfirm,
+              decoration: InputDecoration(
+                labelText: 'Password 확인',
+                isDense: true,
+                errorText: _passwordMismatch ? '비밀번호가 일치하지 않습니다' : null,
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.red, width: 1.5),
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.red, width: 2),
+                ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePasswordConfirm
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscurePasswordConfirm = !_obscurePasswordConfirm;
+                    });
+                  },
+                  tooltip: _obscurePasswordConfirm ? '비밀번호 표시' : '비밀번호 숨기기',
                 ),
               ),
             ),
