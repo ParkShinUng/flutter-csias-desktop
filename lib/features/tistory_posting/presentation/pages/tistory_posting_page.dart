@@ -84,6 +84,24 @@ class TistoryPostingPage extends ConsumerWidget {
                                   label: const Text("전체 초기화"),
                                 ),
                               const SizedBox(width: AppSpacing.s8),
+                              // 취소 버튼 (실행 중일 때만 표시)
+                              if (state.isRunning) ...[
+                                SizedBox(
+                                  height: 40,
+                                  child: OutlinedButton.icon(
+                                    onPressed: controller.cancel,
+                                    icon: const Icon(Icons.stop),
+                                    label: const Text("취소"),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Theme.of(context).colorScheme.error,
+                                      side: BorderSide(
+                                        color: Theme.of(context).colorScheme.error,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.s8),
+                              ],
                               SizedBox(
                                 height: 40,
                                 child: FilledButton.icon(

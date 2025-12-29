@@ -401,6 +401,18 @@ class TistoryPostingController extends StateNotifier<TistoryPostingState> {
     state = state.copyWith(clearUiMessage: true);
   }
 
+  /// 실행 중인 포스팅 작업을 취소합니다.
+  Future<void> cancel() async {
+    if (!state.isRunning) return;
+
+    await disposeRunner();
+    state = state.copyWith(
+      isRunning: false,
+      clearProgress: true,
+    );
+    showInfo('포스팅이 취소되었습니다.');
+  }
+
   Future<void> disposeRunner() async {
     final proc = _runnerProc;
     if (proc == null) return;
