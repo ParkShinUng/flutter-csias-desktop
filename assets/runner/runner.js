@@ -120,16 +120,11 @@ async function postByRequest(context, { blogName, title, bodyHtml, tags, extraHe
   const postUrl = `https://${blogName}.tistory.com/manage/post.json`;
 
   const res = await context.request.post(postUrl, {
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      "accept": "application/json, text/plain, */*",
-      ...extraHeaders,
-    },
+    headers: extraHeaders,
     data: payload,
   });
 
-  const text = await res.text();
-  return { ok: res.ok(), status: res.status(), text };
+  return res;
 }
 
 async function routeTistoryPost(payload) {
