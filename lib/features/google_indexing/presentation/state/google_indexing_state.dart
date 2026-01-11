@@ -123,12 +123,15 @@ class GoogleIndexingState {
         results.where((r) => r.status == IndexingStatus.skipped).length;
     final alreadyIndexed =
         results.where((r) => r.status == IndexingStatus.alreadyIndexed).length;
+    final pending =
+        results.where((r) => r.status == IndexingStatus.pending).length;
     return IndexingResultSummary(
       total: results.length,
       success: success,
       failed: failed,
       skipped: skipped,
       alreadyIndexed: alreadyIndexed,
+      pending: pending,
     );
   }
 

@@ -42,6 +42,7 @@ class IndexingResultSummary {
   final int failed;
   final int skipped;
   final int alreadyIndexed;
+  final int pending;
 
   const IndexingResultSummary({
     required this.total,
@@ -49,6 +50,7 @@ class IndexingResultSummary {
     required this.failed,
     this.skipped = 0,
     this.alreadyIndexed = 0,
+    this.pending = 0,
   });
 
   factory IndexingResultSummary.empty() => const IndexingResultSummary(
@@ -57,5 +59,6 @@ class IndexingResultSummary {
         failed: 0,
         skipped: 0,
         alreadyIndexed: 0,
+        pending: 0,
       );
 }

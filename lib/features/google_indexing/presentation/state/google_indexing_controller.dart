@@ -345,22 +345,23 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
 
       state = state.copyWith(
         allUrls: allUrls,
-        urlsToInspect: allUrls,
         totalCount: allUrls.length,
       );
 
-      // 4. URL Inspection - 색인 상태 확인
+      // 4. URL별 색인 상태 확인 및 색인 요청 (1개씩 처리)
       state = state.copyWith(
-        currentPhase: '색인 상태 확인',
-        statusMessage: '색인 상태 확인 중...',
+        currentPhase: '색인 처리',
+        statusMessage: '색인 처리 중...',
         currentIndex: 0,
       );
 
       final inspectionService =
           UrlInspectionService(accessToken: tokens.accessToken);
       final results = <UrlIndexingResult>[];
-      final urlsToIndex = <String>[];
       var inspectionQuota = state.remainingInspectionQuota;
+      var indexingQuota = state.remainingIndexingQuota;
+      var indexedCount = 0;
+      var requestedCount = 0;
 
       for (int i = 0; i < allUrls.length; i++) {
         if (_isCancelled) break;
@@ -368,148 +369,104 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
         final url = allUrls[i];
         state = state.copyWith(
           currentIndex: i + 1,
-          statusMessage: '색인 상태 확인 중... (${i + 1}/${allUrls.length})',
+          statusMessage: '처리 중... (${i + 1}/${allUrls.length})',
         );
 
-        // 할당량 확인
-        if (inspectionQuota <= 0) {
-          // 남은 URL은 검사 없이 색인 요청 대상에 추가
-          urlsToIndex.addAll(allUrls.sublist(i));
-          break;
+        // Step 1: 색인 상태 확인
+        bool needsIndexing = true;
+
+        if (inspectionQuota > 0) {
+          final siteUrl = UrlInspectionService.extractSiteUrl(url);
+          final inspectionResult = await inspectionService.inspectUrl(
+            url: url,
+            siteUrl: siteUrl,
+          );
+
+          await IndexingStorageService.incrementInspectionCount();
+          inspectionQuota--;
+
+          if (inspectionResult.status == UrlIndexingStatus.indexed) {
+            // 이미 색인됨 - 스킵
+            results.add(UrlIndexingResult(
+              url: url,
+              status: IndexingStatus.alreadyIndexed,
+            ));
+            needsIndexing = false;
+            indexedCount++;
+          } else if (inspectionResult.status == UrlIndexingStatus.error &&
+              inspectionResult.errorMessage?.contains('429') == true) {
+            // Inspection Rate Limit - 남은 URL은 색인 요청만 진행
+            // (색인 상태 확인 없이 색인 요청)
+          }
         }
 
-        final siteUrl = UrlInspectionService.extractSiteUrl(url);
-        final inspectionResult = await inspectionService.inspectUrl(
-          url: url,
-          siteUrl: siteUrl,
-        );
+        // Step 2: 색인 요청 (필요한 경우)
+        if (needsIndexing) {
+          // 색인 할당량 확인
+          if (indexingQuota <= 0) {
+            results.add(UrlIndexingResult(
+              url: url,
+              status: IndexingStatus.skipped,
+              errorMessage: '일일 할당량 초과',
+            ));
+            state = state.copyWith(
+              results: List.from(results),
+              remainingInspectionQuota: inspectionQuota,
+              remainingIndexingQuota: indexingQuota,
+            );
+            continue;
+          }
 
-        await IndexingStorageService.incrementInspectionCount();
-        inspectionQuota--;
+          // 색인 요청 API 호출
+          final apiResult = await _indexingService.requestIndexing(url);
 
-        if (inspectionResult.status == UrlIndexingStatus.indexed) {
-          // 이미 색인됨
-          results.add(UrlIndexingResult(
-            url: url,
-            status: IndexingStatus.alreadyIndexed,
-          ));
-        } else if (inspectionResult.status == UrlIndexingStatus.error &&
-            inspectionResult.errorMessage?.contains('429') == true) {
-          // Rate Limit - 남은 URL은 색인 요청 대상에 추가
-          urlsToIndex.addAll(allUrls.sublist(i));
-          break;
-        } else {
-          // 색인 안됨 또는 알 수 없음 - 색인 요청 필요
-          urlsToIndex.add(url);
+          if (apiResult.success) {
+            await IndexingStorageService.markUrlAsIndexed(url);
+            results.add(UrlIndexingResult(
+              url: url,
+              status: IndexingStatus.success,
+            ));
+            requestedCount++;
+          } else {
+            // 429 에러 시 스킵 처리하고 계속 진행
+            if (apiResult.errorMessage?.contains('429') == true) {
+              results.add(UrlIndexingResult(
+                url: url,
+                status: IndexingStatus.skipped,
+                errorMessage: 'API 요청 한도 초과',
+              ));
+              await IndexingStorageService.incrementTodayCount();
+            } else {
+              await IndexingStorageService.incrementTodayCount();
+              results.add(UrlIndexingResult(
+                url: url,
+                status: IndexingStatus.failed,
+                errorMessage: apiResult.errorMessage,
+              ));
+            }
+          }
+
+          indexingQuota--;
         }
 
         state = state.copyWith(
           results: List.from(results),
           remainingInspectionQuota: inspectionQuota,
-        );
-
-        // Rate Limiting: 0.5초 딜레이
-        if (i < allUrls.length - 1 && !_isCancelled) {
-          await Future.delayed(const Duration(milliseconds: 500));
-        }
-      }
-
-      if (_isCancelled) {
-        state = state.copyWith(
-            isRunning: false, clearStatus: true, clearPhase: true);
-        return;
-      }
-
-      state = state.copyWith(urlsToIndex: urlsToIndex);
-
-      // 5. 색인 요청
-      if (urlsToIndex.isEmpty) {
-        state = state.copyWith(
-          isRunning: false,
-          statusMessage: '모든 URL이 이미 색인되어 있습니다.',
-          clearPhase: true,
-        );
-        return;
-      }
-
-      state = state.copyWith(
-        currentPhase: '색인 요청',
-        statusMessage: '색인 요청 중...',
-        currentIndex: 0,
-        totalCount: urlsToIndex.length,
-      );
-
-      var indexingQuota = state.remainingIndexingQuota;
-
-      for (int i = 0; i < urlsToIndex.length; i++) {
-        if (_isCancelled) break;
-
-        final url = urlsToIndex[i];
-        state = state.copyWith(
-          currentIndex: i + 1,
-          statusMessage: '색인 요청 중... (${i + 1}/${urlsToIndex.length})',
-        );
-
-        // 할당량 확인
-        if (indexingQuota <= 0) {
-          // 남은 URL 스킵 처리
-          for (int j = i; j < urlsToIndex.length; j++) {
-            results.add(UrlIndexingResult(
-              url: urlsToIndex[j],
-              status: IndexingStatus.skipped,
-              errorMessage: '일일 할당량 초과',
-            ));
-          }
-          state = state.copyWith(
-            results: List.from(results),
-            errorMessage: '일일 할당량(200개)을 모두 사용했습니다.',
-          );
-          break;
-        }
-
-        // API 호출
-        final apiResult = await _indexingService.requestIndexing(url);
-
-        if (apiResult.success) {
-          await IndexingStorageService.markUrlAsIndexed(url);
-          results.add(UrlIndexingResult(
-            url: url,
-            status: IndexingStatus.success,
-          ));
-        } else {
-          // 429 에러 시 중단
-          if (apiResult.errorMessage?.contains('429') == true) {
-            results.add(UrlIndexingResult(
-              url: url,
-              status: IndexingStatus.failed,
-              errorMessage: 'API 요청 한도 초과',
-            ));
-            await IndexingStorageService.incrementTodayCount();
-            state = state.copyWith(
-              results: List.from(results),
-              errorMessage: 'API 요청 한도 초과로 중단되었습니다.',
-            );
-            break;
-          }
-
-          await IndexingStorageService.incrementTodayCount();
-          results.add(UrlIndexingResult(
-            url: url,
-            status: IndexingStatus.failed,
-            errorMessage: apiResult.errorMessage,
-          ));
-        }
-
-        indexingQuota--;
-        state = state.copyWith(
-          results: List.from(results),
           remainingIndexingQuota: indexingQuota,
         );
 
         // Rate Limiting: 1초 딜레이
-        if (i < urlsToIndex.length - 1 && !_isCancelled) {
+        if (i < allUrls.length - 1 && !_isCancelled) {
           await Future.delayed(const Duration(milliseconds: 1000));
         }
+      }
+
+      // 결과 메시지 생성
+      String? resultMessage;
+      if (indexedCount == allUrls.length) {
+        resultMessage = '모든 URL이 이미 색인되어 있습니다.';
+      } else if (requestedCount > 0) {
+        resultMessage = '$requestedCount개 URL 색인 요청 완료, $indexedCount개는 이미 색인됨';
       }
 
       // 정리
@@ -517,7 +474,7 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
 
       state = state.copyWith(
         isRunning: false,
-        clearStatus: true,
+        statusMessage: resultMessage,
         clearPhase: true,
       );
     } catch (e) {

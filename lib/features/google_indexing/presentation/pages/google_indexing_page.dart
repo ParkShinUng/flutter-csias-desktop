@@ -798,6 +798,7 @@ class GoogleIndexingPage extends ConsumerWidget {
               _buildSummaryItem(context, '성공', summary.success, Colors.green),
               _buildSummaryItem(
                   context, '이미 색인됨', summary.alreadyIndexed, Colors.blue),
+              _buildSummaryItem(context, '대기 중', summary.pending, Colors.grey),
               _buildSummaryItem(context, '실패', summary.failed, scheme.error),
               _buildSummaryItem(context, '건너뜀', summary.skipped, Colors.orange),
             ],
@@ -842,9 +843,11 @@ class GoogleIndexingPage extends ConsumerWidget {
         final isSuccess = result.status == IndexingStatus.success;
         final isSkipped = result.status == IndexingStatus.skipped;
         final isAlreadyIndexed = result.status == IndexingStatus.alreadyIndexed;
+        final isPending = result.status == IndexingStatus.pending;
 
         IconData icon;
         Color iconColor;
+        Widget? trailing;
         if (isSuccess) {
           icon = Icons.check_circle;
           iconColor = Colors.green;
@@ -854,6 +857,14 @@ class GoogleIndexingPage extends ConsumerWidget {
         } else if (isSkipped) {
           icon = Icons.skip_next;
           iconColor = Colors.orange;
+        } else if (isPending) {
+          icon = Icons.hourglass_empty;
+          iconColor = Colors.grey;
+          trailing = const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          );
         } else {
           icon = Icons.error;
           iconColor = scheme.error;
@@ -864,6 +875,9 @@ class GoogleIndexingPage extends ConsumerWidget {
         if (isAlreadyIndexed) {
           subtitle = '이미 색인됨';
           subtitleColor = Colors.blue;
+        } else if (isPending) {
+          subtitle = '색인 요청 대기 중';
+          subtitleColor = Colors.grey;
         } else if (result.errorMessage != null) {
           subtitle = result.errorMessage;
           subtitleColor = isSkipped ? Colors.orange : scheme.error;
@@ -886,6 +900,7 @@ class GoogleIndexingPage extends ConsumerWidget {
                   ),
                 )
               : null,
+          trailing: trailing,
         );
       },
     );
