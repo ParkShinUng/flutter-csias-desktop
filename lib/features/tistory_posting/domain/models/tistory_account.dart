@@ -2,7 +2,8 @@ class TistoryAccount {
   final String id;
   final String kakaoId;
   final String password;
-  final String blogName;
+  final List<String> blogNames;
+  final String? selectedBlogName;
   final Map<String, dynamic>? storageState;
   final Map<String, int> postingHistory; // date -> count
 
@@ -10,16 +11,23 @@ class TistoryAccount {
     required this.id,
     required this.kakaoId,
     required this.password,
-    required this.blogName,
+    required this.blogNames,
+    this.selectedBlogName,
     this.storageState,
     this.postingHistory = const {},
   });
+
+  /// 현재 활성 블로그 (선택된 것 또는 첫 번째)
+  String? get activeBlogName =>
+      selectedBlogName ?? (blogNames.isNotEmpty ? blogNames.first : null);
 
   TistoryAccount copyWith({
     String? id,
     String? kakaoId,
     String? password,
-    String? blogName,
+    List<String>? blogNames,
+    String? selectedBlogName,
+    bool clearSelectedBlogName = false,
     Map<String, dynamic>? storageState,
     bool clearStorageState = false,
     Map<String, int>? postingHistory,
@@ -28,8 +36,12 @@ class TistoryAccount {
       id: id ?? this.id,
       kakaoId: kakaoId ?? this.kakaoId,
       password: password ?? this.password,
-      blogName: blogName ?? this.blogName,
-      storageState: clearStorageState ? null : (storageState ?? this.storageState),
+      blogNames: blogNames ?? this.blogNames,
+      selectedBlogName: clearSelectedBlogName
+          ? null
+          : (selectedBlogName ?? this.selectedBlogName),
+      storageState:
+          clearStorageState ? null : (storageState ?? this.storageState),
       postingHistory: postingHistory ?? this.postingHistory,
     );
   }
@@ -40,21 +52,33 @@ class TistoryAccount {
         'id': id,
         'kakaoId': kakaoId,
         // password는 보안상 제외 - SecurePasswordService에서 별도 관리
-        'blogName': blogName,
+        'blogNames': blogNames,
+        if (selectedBlogName != null) 'selectedBlogName': selectedBlogName,
         if (storageState != null) 'storageState': storageState,
         'postingHistory': postingHistory,
       };
 
   /// JSON에서 역직렬화합니다.
   /// password는 빈 문자열로 초기화되며, SecurePasswordService에서 별도로 불러와야 합니다.
-  /// legacyPassword는 마이그레이션용으로 기존 JSON에 password가 있으면 반환합니다.
+  /// 레거시 지원: 기존 blogName (String) -> blogNames (List) 자동 마이그레이션
   factory TistoryAccount.fromJson(Map<String, dynamic> json) {
+    // 레거시 마이그레이션: blogName (단일) -> blogNames (리스트)
+    List<String> blogNames;
+    if (json.containsKey('blogNames')) {
+      blogNames = (json['blogNames'] as List).cast<String>();
+    } else if (json.containsKey('blogName')) {
+      blogNames = [json['blogName'] as String];
+    } else {
+      blogNames = [];
+    }
+
     return TistoryAccount(
       id: json['id'] as String,
       kakaoId: json['kakaoId'] as String,
       // password는 secure storage에서 별도로 불러옴
       password: '',
-      blogName: json['blogName'] as String,
+      blogNames: blogNames,
+      selectedBlogName: json['selectedBlogName'] as String?,
       storageState: json['storageState'] as Map<String, dynamic>?,
       postingHistory: (json['postingHistory'] as Map<String, dynamic>?)
               ?.map((k, v) => MapEntry(k, v as int)) ??
@@ -67,5 +91,5 @@ class TistoryAccount {
     return json['password'] as String?;
   }
 
-  String get displayName => '$kakaoId ($blogName)';
+  String get displayName => '$kakaoId (${blogNames.length}개 블로그)';
 }

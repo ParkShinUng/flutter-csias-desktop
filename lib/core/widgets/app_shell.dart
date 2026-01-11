@@ -7,7 +7,8 @@ class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.child});
 
   int _indexFromLocation(String location) {
-    if (location.startsWith('/queries')) return 1;
+    if (location.startsWith('/indexing')) return 1;
+    if (location.startsWith('/queries')) return 2;
     return 0; // default: /tistory
   }
 
@@ -23,7 +24,8 @@ class AppShell extends StatelessWidget {
             selectedIndex: selectedIndex,
             onDestinationSelected: (i) {
               if (i == 0) context.go('/tistory');
-              if (i == 1) context.go('/queries');
+              if (i == 1) context.go('/indexing');
+              if (i == 2) context.go('/queries');
             },
             labelType: NavigationRailLabelType.all,
             leading: Padding(
@@ -44,6 +46,11 @@ class AppShell extends StatelessWidget {
                 icon: Icon(Icons.article_outlined),
                 selectedIcon: Icon(Icons.article),
                 label: Text('Tistory'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.playlist_add_check_outlined),
+                selectedIcon: Icon(Icons.playlist_add_check),
+                label: Text('Google\nIndexing', textAlign: TextAlign.center),
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.query_stats_outlined),

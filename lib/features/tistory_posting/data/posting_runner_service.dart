@@ -194,7 +194,7 @@ class PostingRunnerService {
         "account": {
           "id": account.kakaoId,
           "pw": account.password,
-          "blogName": account.blogName,
+          "blogName": account.activeBlogName,
         },
         "storageStatePath": storageStatePath,
         "posts": files

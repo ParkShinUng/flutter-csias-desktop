@@ -57,6 +57,12 @@ class TistoryPostingState {
     }
   }
 
+  /// 선택된 계정의 활성 블로그명
+  String? get selectedBlogName => selectedAccount?.activeBlogName;
+
+  /// 선택된 계정의 블로그 목록
+  List<String> get selectedAccountBlogNames => selectedAccount?.blogNames ?? [];
+
   /// 선택된 계정의 오늘 포스팅 수
   int get selectedAccountTodayPosts {
     if (selectedAccountId == null) return 0;

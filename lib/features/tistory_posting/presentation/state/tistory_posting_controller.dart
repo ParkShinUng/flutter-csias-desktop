@@ -50,7 +50,9 @@ class TistoryPostingController extends Notifier<TistoryPostingState> {
       id: UnifiedStorageService.generateId(),
       kakaoId: account.kakaoId,
       password: account.password,
-      blogName: account.blogName,
+      blogNames: account.blogNames,
+      selectedBlogName:
+          account.blogNames.isNotEmpty ? account.blogNames.first : null,
     );
     await UnifiedStorageService.addAccount(newAccount);
     await loadAccounts();
@@ -67,9 +69,18 @@ class TistoryPostingController extends Notifier<TistoryPostingState> {
       orElse: () => account,
     );
 
+    // 기존 selectedBlogName이 새 blogNames에 없으면 첫 번째로 변경
+    String? selectedBlogName = existingAccount.selectedBlogName;
+    if (selectedBlogName != null &&
+        !account.blogNames.contains(selectedBlogName)) {
+      selectedBlogName =
+          account.blogNames.isNotEmpty ? account.blogNames.first : null;
+    }
+
     final updatedAccount = account.copyWith(
       storageState: existingAccount.storageState,
       postingHistory: existingAccount.postingHistory,
+      selectedBlogName: selectedBlogName,
     );
 
     await UnifiedStorageService.updateAccount(updatedAccount);
@@ -95,6 +106,18 @@ class TistoryPostingController extends Notifier<TistoryPostingState> {
       selectedAccountId: accountId,
       clearSelectedAccount: accountId == null,
     );
+  }
+
+  /// 선택된 계정의 블로그를 선택합니다.
+  Future<void> selectBlog(String blogName) async {
+    final account = state.selectedAccount;
+    if (account == null) return;
+
+    if (!account.blogNames.contains(blogName)) return;
+
+    final updatedAccount = account.copyWith(selectedBlogName: blogName);
+    await UnifiedStorageService.updateAccount(updatedAccount);
+    await loadAccounts();
   }
 
   /* ========================= Files ========================= */
@@ -218,6 +241,11 @@ class TistoryPostingController extends Notifier<TistoryPostingState> {
     final account = state.selectedAccount;
     if (account == null) {
       return (message: "계정을 선택해주세요.", detail: null);
+    }
+
+    // 블로그 선택 확인
+    if (account.activeBlogName == null) {
+      return (message: "블로그를 선택해주세요.", detail: "계정 관리에서 블로그를 추가해주세요.");
     }
 
     if (state.files.isEmpty) {

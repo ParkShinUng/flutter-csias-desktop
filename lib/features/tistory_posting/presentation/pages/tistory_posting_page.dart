@@ -46,10 +46,12 @@ class TistoryPostingPage extends ConsumerWidget {
                 child: AccountSelectorBar(
                   accounts: state.accounts,
                   selectedAccountId: state.selectedAccountId,
+                  selectedBlogName: state.selectedBlogName,
                   disabled: state.isRunning,
                   remainingPosts: state.selectedAccountRemainingPosts,
                   todayPostCounts: state.todayPostCounts,
                   onSelectAccount: controller.selectAccount,
+                  onSelectBlog: controller.selectBlog,
                   onManageAccounts: () => _showAccountManagement(context),
                 ),
               ),

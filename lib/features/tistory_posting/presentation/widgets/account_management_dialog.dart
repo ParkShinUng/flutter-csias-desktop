@@ -10,10 +10,12 @@ class AccountManagementDialog extends ConsumerStatefulWidget {
   const AccountManagementDialog({super.key});
 
   @override
-  ConsumerState<AccountManagementDialog> createState() => _AccountManagementDialogState();
+  ConsumerState<AccountManagementDialog> createState() =>
+      _AccountManagementDialogState();
 }
 
-class _AccountManagementDialogState extends ConsumerState<AccountManagementDialog> {
+class _AccountManagementDialogState
+    extends ConsumerState<AccountManagementDialog> {
   String? _editingId;
   bool _isAdding = false;
   bool _hasKoreanInPassword = false;
@@ -22,7 +24,10 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
   final _idController = TextEditingController();
   final _pwController = TextEditingController();
   final _pwConfirmController = TextEditingController();
-  final _blogController = TextEditingController();
+  final _blogInputController = TextEditingController();
+
+  // 블로그 목록 관리
+  final List<String> _blogNames = [];
 
   static final _koreanRegex = RegExp(r'[ㄱ-ㅎㅏ-ㅣ가-힣]');
 
@@ -54,7 +59,7 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
     _idController.dispose();
     _pwController.dispose();
     _pwConfirmController.dispose();
-    _blogController.dispose();
+    _blogInputController.dispose();
     super.dispose();
   }
 
@@ -65,7 +70,8 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
       _idController.clear();
       _pwController.clear();
       _pwConfirmController.clear();
-      _blogController.clear();
+      _blogInputController.clear();
+      _blogNames.clear();
       _hasKoreanInPassword = false;
       _passwordMismatch = false;
     });
@@ -78,7 +84,9 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
       _idController.text = account.kakaoId;
       _pwController.text = account.password;
       _pwConfirmController.text = account.password;
-      _blogController.text = account.blogName;
+      _blogInputController.clear();
+      _blogNames.clear();
+      _blogNames.addAll(account.blogNames);
       _hasKoreanInPassword = false;
       _passwordMismatch = false;
     });
@@ -93,7 +101,24 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
       _idController.clear();
       _pwController.clear();
       _pwConfirmController.clear();
-      _blogController.clear();
+      _blogInputController.clear();
+      _blogNames.clear();
+    });
+  }
+
+  void _addBlog() {
+    final blogName = _blogInputController.text.trim();
+    if (blogName.isEmpty || _blogNames.contains(blogName)) return;
+
+    setState(() {
+      _blogNames.add(blogName);
+      _blogInputController.clear();
+    });
+  }
+
+  void _removeBlog(String blogName) {
+    setState(() {
+      _blogNames.remove(blogName);
     });
   }
 
@@ -101,9 +126,15 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
     final kakaoId = _idController.text.trim();
     final password = _pwController.text.trim();
     final passwordConfirm = _pwConfirmController.text.trim();
-    final blogName = _blogController.text.trim();
 
-    if (kakaoId.isEmpty || password.isEmpty || passwordConfirm.isEmpty || blogName.isEmpty) {
+    if (kakaoId.isEmpty || password.isEmpty || passwordConfirm.isEmpty) {
+      return;
+    }
+
+    if (_blogNames.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('최소 1개의 블로그를 추가해주세요')),
+      );
       return;
     }
 
@@ -125,14 +156,14 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
         id: '',
         kakaoId: kakaoId,
         password: password,
-        blogName: blogName,
+        blogNames: List.from(_blogNames),
       ));
     } else if (_editingId != null) {
       await controller.updateAccount(TistoryAccount(
         id: _editingId!,
         kakaoId: kakaoId,
         password: password,
-        blogName: blogName,
+        blogNames: List.from(_blogNames),
       ));
     }
 
@@ -251,12 +282,17 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
       return _buildEditForm(account);
     }
 
+    final blogCount = account.blogNames.length;
+    final blogText = blogCount == 1
+        ? account.blogNames.first
+        : '${account.blogNames.first} 외 ${blogCount - 1}개';
+
     return Card(
       margin: const EdgeInsets.only(bottom: AppSpacing.s8),
       child: ListTile(
         leading: const Icon(Icons.account_circle),
         title: Text(account.kakaoId),
-        subtitle: Text(account.blogName),
+        subtitle: Text(blogText),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -277,6 +313,8 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
   }
 
   Widget _buildEditForm(TistoryAccount? account) {
+    final scheme = context.colorScheme;
+
     return Card(
       margin: const EdgeInsets.only(bottom: AppSpacing.s8),
       child: Padding(
@@ -300,7 +338,8 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
             PasswordTextField(
               controller: _pwController,
               labelText: 'Password',
-              errorText: _hasKoreanInPassword ? '영문, 숫자, 특수문자만 입력 가능합니다' : null,
+              errorText:
+                  _hasKoreanInPassword ? '영문, 숫자, 특수문자만 입력 가능합니다' : null,
             ),
             const SizedBox(height: AppSpacing.s12),
             PasswordTextField(
@@ -308,15 +347,55 @@ class _AccountManagementDialogState extends ConsumerState<AccountManagementDialo
               labelText: 'Password 확인',
               errorText: _passwordMismatch ? '비밀번호가 일치하지 않습니다' : null,
             ),
-            const SizedBox(height: AppSpacing.s12),
-            TextField(
-              controller: _blogController,
-              decoration: const InputDecoration(
-                labelText: 'Blog Name',
-                hintText: '예) my-blog-name',
-                isDense: true,
+            const SizedBox(height: AppSpacing.s16),
+
+            // 블로그 목록 섹션
+            Text(
+              'Blog Names',
+              style: context.textTheme.labelLarge?.copyWith(
+                color: scheme.onSurfaceVariant,
               ),
             ),
+            const SizedBox(height: AppSpacing.s8),
+
+            // 블로그 Chip 목록
+            if (_blogNames.isNotEmpty) ...[
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: _blogNames
+                    .map((name) => Chip(
+                          label: Text(name),
+                          deleteIcon: const Icon(Icons.close, size: 18),
+                          onDeleted: () => _removeBlog(name),
+                        ))
+                    .toList(),
+              ),
+              const SizedBox(height: AppSpacing.s8),
+            ],
+
+            // 블로그 추가 입력
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _blogInputController,
+                    decoration: const InputDecoration(
+                      hintText: '블로그 이름 입력 (예: my-blog)',
+                      isDense: true,
+                    ),
+                    onSubmitted: (_) => _addBlog(),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.s8),
+                IconButton(
+                  onPressed: _addBlog,
+                  icon: const Icon(Icons.add_circle_outline),
+                  tooltip: '블로그 추가',
+                ),
+              ],
+            ),
+
             const SizedBox(height: AppSpacing.s16),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
