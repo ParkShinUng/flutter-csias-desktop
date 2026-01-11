@@ -19,11 +19,31 @@ class OAuthCredentials {
         'clientSecret': clientSecret,
       };
 
-  factory OAuthCredentials.fromJson(Map<String, dynamic> json) =>
-      OAuthCredentials(
-        clientId: json['clientId'] as String,
-        clientSecret: json['clientSecret'] as String,
+  factory OAuthCredentials.fromJson(Map<String, dynamic> json) {
+    // Google Cloud Console에서 다운로드한 원본 형식 지원
+    // {"installed": {"client_id": "...", "client_secret": "..."}}
+    // 또는 {"web": {"client_id": "...", "client_secret": "..."}}
+    if (json.containsKey('installed')) {
+      final installed = json['installed'] as Map<String, dynamic>;
+      return OAuthCredentials(
+        clientId: installed['client_id'] as String,
+        clientSecret: installed['client_secret'] as String,
       );
+    } else if (json.containsKey('web')) {
+      final web = json['web'] as Map<String, dynamic>;
+      return OAuthCredentials(
+        clientId: web['client_id'] as String,
+        clientSecret: web['client_secret'] as String,
+      );
+    }
+
+    // 기존 형식 지원
+    // {"clientId": "...", "clientSecret": "..."}
+    return OAuthCredentials(
+      clientId: json['clientId'] as String,
+      clientSecret: json['clientSecret'] as String,
+    );
+  }
 }
 
 /// Google Indexing 저장 서비스
