@@ -1,13 +1,39 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:csias_desktop/features/google_indexing/data/google_oauth_service.dart';
 import 'package:csias_desktop/features/tistory_posting/data/unified_storage_service.dart';
+
+/// OAuth 클라이언트 자격증명
+class OAuthCredentials {
+  final String clientId;
+  final String clientSecret;
+
+  const OAuthCredentials({
+    required this.clientId,
+    required this.clientSecret,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'clientId': clientId,
+        'clientSecret': clientSecret,
+      };
+
+  factory OAuthCredentials.fromJson(Map<String, dynamic> json) =>
+      OAuthCredentials(
+        clientId: json['clientId'] as String,
+        clientSecret: json['clientSecret'] as String,
+      );
+}
 
 /// Google Indexing 저장 서비스
 class IndexingStorageService {
   static const String serviceAccountFileName = 'google_service_account.json';
+  static const String oauthCredentialsFileName = 'google_oauth_credentials.json';
+  static const String oauthTokensFileName = 'google_oauth_tokens.json';
   static const String indexedUrlsFileName = 'indexed_urls.json';
   static const int defaultDailyLimit = 200;
+  static const int defaultInspectionLimit = 2000;
 
   /// 서비스 계정 JSON 파일 경로
   static String get serviceAccountPath {
@@ -154,5 +180,156 @@ class IndexingStorageService {
     } catch (e) {
       // ignore
     }
+  }
+
+  // ==================== OAuth 관련 ====================
+
+  /// OAuth 자격증명 파일 경로
+  static String get oauthCredentialsPath {
+    final separator = Platform.isWindows ? '\\' : '/';
+    return '${UnifiedStorageService.storagePath}$separator$oauthCredentialsFileName';
+  }
+
+  /// OAuth 토큰 파일 경로
+  static String get _oauthTokensPath {
+    final separator = Platform.isWindows ? '\\' : '/';
+    return '${UnifiedStorageService.storagePath}$separator$oauthTokensFileName';
+  }
+
+  /// OAuth 자격증명이 존재하는지 확인
+  static Future<bool> hasOAuthCredentials() async {
+    final file = File(oauthCredentialsPath);
+    return file.exists();
+  }
+
+  /// OAuth 자격증명 로드
+  static Future<OAuthCredentials?> loadOAuthCredentials() async {
+    try {
+      final file = File(oauthCredentialsPath);
+      if (!await file.exists()) return null;
+
+      final content = await file.readAsString();
+      final json = jsonDecode(content) as Map<String, dynamic>;
+      return OAuthCredentials.fromJson(json);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// OAuth 자격증명 저장
+  static Future<void> saveOAuthCredentials(OAuthCredentials credentials) async {
+    try {
+      final dir = Directory(UnifiedStorageService.storagePath);
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+
+      final file = File(oauthCredentialsPath);
+      await file.writeAsString(
+        const JsonEncoder.withIndent('  ').convert(credentials.toJson()),
+      );
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  /// OAuth 토큰이 존재하는지 확인
+  static Future<bool> hasOAuthTokens() async {
+    final file = File(_oauthTokensPath);
+    return file.exists();
+  }
+
+  /// OAuth 토큰 로드
+  static Future<OAuthTokens?> loadOAuthTokens() async {
+    try {
+      final file = File(_oauthTokensPath);
+      if (!await file.exists()) return null;
+
+      final content = await file.readAsString();
+      final json = jsonDecode(content) as Map<String, dynamic>;
+      return OAuthTokens.fromJson(json);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// OAuth 토큰 저장
+  static Future<void> saveOAuthTokens(OAuthTokens tokens) async {
+    try {
+      final dir = Directory(UnifiedStorageService.storagePath);
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+
+      final file = File(_oauthTokensPath);
+      await file.writeAsString(
+        const JsonEncoder.withIndent('  ').convert(tokens.toJson()),
+      );
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  /// OAuth 토큰 삭제 (로그아웃)
+  static Future<void> deleteOAuthTokens() async {
+    try {
+      final file = File(_oauthTokensPath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  /// 오늘 URL Inspection 요청 횟수 로드
+  static Future<int> loadTodayInspectionCount() async {
+    try {
+      final file = File(_indexedUrlsPath);
+      if (!await file.exists()) return 0;
+
+      final content = await file.readAsString();
+      final json = jsonDecode(content) as Map<String, dynamic>;
+      final inspectionCounts =
+          json['inspectionCounts'] as Map<String, dynamic>? ?? {};
+      return (inspectionCounts[_todayKey] as int?) ?? 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  /// URL Inspection 요청 횟수 증가
+  static Future<void> incrementInspectionCount() async {
+    try {
+      final dir = Directory(UnifiedStorageService.storagePath);
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+
+      final file = File(_indexedUrlsPath);
+      Map<String, dynamic> json = {};
+
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        json = jsonDecode(content) as Map<String, dynamic>;
+      }
+
+      final inspectionCounts =
+          (json['inspectionCounts'] as Map<String, dynamic>?) ?? {};
+      inspectionCounts[_todayKey] =
+          ((inspectionCounts[_todayKey] as int?) ?? 0) + 1;
+      json['inspectionCounts'] = inspectionCounts;
+
+      await file.writeAsString(
+          const JsonEncoder.withIndent('  ').convert(json));
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  /// 남은 URL Inspection 할당량
+  static Future<int> getRemainingInspectionQuota() async {
+    final todayCount = await loadTodayInspectionCount();
+    return (defaultInspectionLimit - todayCount).clamp(0, defaultInspectionLimit);
   }
 }

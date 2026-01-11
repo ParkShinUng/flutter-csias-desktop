@@ -1,6 +1,8 @@
 import 'package:csias_desktop/features/google_indexing/data/google_indexing_service.dart';
+import 'package:csias_desktop/features/google_indexing/data/google_oauth_service.dart';
 import 'package:csias_desktop/features/google_indexing/data/indexing_storage_service.dart';
 import 'package:csias_desktop/features/google_indexing/data/sitemap_parser.dart';
+import 'package:csias_desktop/features/google_indexing/data/url_inspection_service.dart';
 import 'package:csias_desktop/features/google_indexing/domain/models/indexing_result.dart';
 import 'package:csias_desktop/features/google_indexing/presentation/state/google_indexing_state.dart';
 import 'package:csias_desktop/features/tistory_posting/data/unified_storage_service.dart';
@@ -8,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class GoogleIndexingController extends Notifier<GoogleIndexingState> {
   final _indexingService = GoogleIndexingService();
+  GoogleOAuthService? _oauthService;
   bool _isCancelled = false;
 
   @override
@@ -27,14 +30,63 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
   /// 상태 새로고침
   Future<void> refresh() async {
     final hasServiceAccount = await IndexingStorageService.hasServiceAccount();
-    final remainingQuota = await IndexingStorageService.getRemainingDailyQuota();
+    final remainingIndexingQuota =
+        await IndexingStorageService.getRemainingDailyQuota();
+    final remainingInspectionQuota =
+        await IndexingStorageService.getRemainingInspectionQuota();
     final blogNames = await _loadAllBlogNames();
+
+    // OAuth 상태 확인
+    final authStatus = await _checkAuthStatus();
 
     state = state.copyWith(
       hasServiceAccount: hasServiceAccount,
-      remainingQuota: remainingQuota,
+      authStatus: authStatus,
+      remainingIndexingQuota: remainingIndexingQuota,
+      remainingInspectionQuota: remainingInspectionQuota,
       blogNames: blogNames,
     );
+  }
+
+  /// OAuth 인증 상태 확인
+  Future<AuthStatus> _checkAuthStatus() async {
+    final hasCredentials = await IndexingStorageService.hasOAuthCredentials();
+    if (!hasCredentials) {
+      return AuthStatus.notConfigured;
+    }
+
+    final tokens = await IndexingStorageService.loadOAuthTokens();
+    if (tokens == null) {
+      return AuthStatus.notAuthenticated;
+    }
+
+    // 토큰이 만료되었으면 갱신 시도
+    if (tokens.isExpired) {
+      final credentials = await IndexingStorageService.loadOAuthCredentials();
+      if (credentials == null) {
+        return AuthStatus.notAuthenticated;
+      }
+
+      _oauthService = GoogleOAuthService(
+        clientId: credentials.clientId,
+        clientSecret: credentials.clientSecret,
+      );
+
+      final result =
+          await _oauthService!.refreshAccessToken(tokens.refreshToken);
+      if (result.success) {
+        await IndexingStorageService.saveOAuthTokens(OAuthTokens(
+          accessToken: result.accessToken!,
+          refreshToken: result.refreshToken!,
+          expiresAt: result.expiresAt!,
+        ));
+        return AuthStatus.authenticated;
+      } else {
+        return AuthStatus.notAuthenticated;
+      }
+    }
+
+    return AuthStatus.authenticated;
   }
 
   /// 모든 블로그 이름 로드
@@ -56,6 +108,67 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
     return 'https://$blogName.tistory.com/sitemap.xml';
   }
 
+  /// OAuth 인증 시작
+  Future<void> startAuthentication() async {
+    final credentials = await IndexingStorageService.loadOAuthCredentials();
+    if (credentials == null) {
+      state = state.copyWith(
+        errorMessage: 'OAuth 자격증명 파일이 없습니다.',
+      );
+      return;
+    }
+
+    state = state.copyWith(
+      authStatus: AuthStatus.authenticating,
+      statusMessage: '브라우저에서 Google 계정으로 로그인해주세요...',
+    );
+
+    _oauthService = GoogleOAuthService(
+      clientId: credentials.clientId,
+      clientSecret: credentials.clientSecret,
+    );
+
+    final result = await _oauthService!.authenticate();
+
+    if (result.success) {
+      await IndexingStorageService.saveOAuthTokens(OAuthTokens(
+        accessToken: result.accessToken!,
+        refreshToken: result.refreshToken!,
+        expiresAt: result.expiresAt!,
+      ));
+
+      state = state.copyWith(
+        authStatus: AuthStatus.authenticated,
+        statusMessage: '인증 완료',
+        clearError: true,
+      );
+    } else {
+      state = state.copyWith(
+        authStatus: AuthStatus.notAuthenticated,
+        errorMessage: result.error ?? '인증 실패',
+        clearStatus: true,
+      );
+    }
+  }
+
+  /// OAuth 인증 취소
+  Future<void> cancelAuthentication() async {
+    await _oauthService?.cancelAuthentication();
+    state = state.copyWith(
+      authStatus: AuthStatus.notAuthenticated,
+      clearStatus: true,
+    );
+  }
+
+  /// 로그아웃
+  Future<void> logout() async {
+    await IndexingStorageService.deleteOAuthTokens();
+    state = state.copyWith(
+      authStatus: AuthStatus.notAuthenticated,
+      statusMessage: '로그아웃 완료',
+    );
+  }
+
   /// 전체 색인 요청 시작
   Future<void> startIndexing() async {
     if (state.isRunning) return;
@@ -72,14 +185,7 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
 
     if (state.blogNames.isEmpty) {
       state = state.copyWith(
-        errorMessage: '등록된 블로그가 없습니다. Tistory 계정을 먼저 추가해주세요.',
-      );
-      return;
-    }
-
-    if (state.remainingQuota <= 0) {
-      state = state.copyWith(
-        errorMessage: '오늘의 일일 할당량(200개)을 모두 사용했습니다.',
+        errorMessage: '등록된 블로그가 없습니다.',
       );
       return;
     }
@@ -88,37 +194,142 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
     state = state.copyWith(
       isRunning: true,
       allUrls: [],
-      pendingUrls: [],
+      urlsToInspect: [],
+      urlsToIndex: [],
       results: [],
       currentIndex: 0,
+      totalCount: 0,
       clearError: true,
-      statusMessage: '인증 중...',
+      currentPhase: '준비',
+      statusMessage: '인증 확인 중...',
     );
 
     try {
-      // 1. 인증
-      await _indexingService.authenticate(IndexingStorageService.serviceAccountPath);
+      // 1. Indexing API 인증
+      await _indexingService
+          .authenticate(IndexingStorageService.serviceAccountPath);
 
-      // 2. 모든 블로그에서 URL 수집
-      state = state.copyWith(statusMessage: 'Sitemap 로딩 중...');
+      // 2. OAuth 인증 확인 및 필요시 자동 인증
+      var tokens = await IndexingStorageService.loadOAuthTokens();
+
+      // 토큰이 없거나 만료된 경우 인증 진행
+      if (tokens == null || tokens.isExpired) {
+        // OAuth 자격증명 확인
+        final credentials = await IndexingStorageService.loadOAuthCredentials();
+        if (credentials == null) {
+          state = state.copyWith(
+            isRunning: false,
+            errorMessage: 'OAuth 자격증명 파일이 없습니다. 먼저 자격증명을 설정해주세요.',
+            clearStatus: true,
+            clearPhase: true,
+          );
+          return;
+        }
+
+        // 토큰이 있지만 만료된 경우 갱신 시도
+        if (tokens != null && tokens.isExpired) {
+          state = state.copyWith(
+            statusMessage: '토큰 갱신 중...',
+          );
+
+          _oauthService = GoogleOAuthService(
+            clientId: credentials.clientId,
+            clientSecret: credentials.clientSecret,
+          );
+
+          final refreshResult =
+              await _oauthService!.refreshAccessToken(tokens.refreshToken);
+
+          if (refreshResult.success) {
+            tokens = OAuthTokens(
+              accessToken: refreshResult.accessToken!,
+              refreshToken: refreshResult.refreshToken!,
+              expiresAt: refreshResult.expiresAt!,
+            );
+            await IndexingStorageService.saveOAuthTokens(tokens);
+          } else {
+            // 갱신 실패 시 새로 인증 필요
+            tokens = null;
+          }
+        }
+
+        // 토큰이 없으면 새로 인증 진행
+        if (tokens == null) {
+          state = state.copyWith(
+            authStatus: AuthStatus.authenticating,
+            statusMessage: '브라우저에서 Google 계정으로 로그인해주세요...',
+            currentPhase: 'OAuth 인증',
+          );
+
+          _oauthService = GoogleOAuthService(
+            clientId: credentials.clientId,
+            clientSecret: credentials.clientSecret,
+          );
+
+          final authResult = await _oauthService!.authenticate();
+
+          if (_isCancelled) {
+            state = state.copyWith(
+              isRunning: false,
+              authStatus: AuthStatus.notAuthenticated,
+              clearStatus: true,
+              clearPhase: true,
+            );
+            return;
+          }
+
+          if (!authResult.success) {
+            state = state.copyWith(
+              isRunning: false,
+              authStatus: AuthStatus.notAuthenticated,
+              errorMessage: authResult.error ?? '인증에 실패했습니다.',
+              clearStatus: true,
+              clearPhase: true,
+            );
+            return;
+          }
+
+          // 인증 성공 - 토큰 저장
+          tokens = OAuthTokens(
+            accessToken: authResult.accessToken!,
+            refreshToken: authResult.refreshToken!,
+            expiresAt: authResult.expiresAt!,
+          );
+          await IndexingStorageService.saveOAuthTokens(tokens);
+
+          state = state.copyWith(
+            authStatus: AuthStatus.authenticated,
+            statusMessage: '인증 완료! 색인 작업을 시작합니다...',
+            currentPhase: '준비',
+          );
+        }
+      }
+
+      // 3. 모든 블로그에서 URL 수집
+      state = state.copyWith(
+        currentPhase: 'Sitemap 로딩',
+        statusMessage: 'Sitemap 로딩 중...',
+      );
+
       final allUrls = <String>[];
-
       for (final blogName in state.blogNames) {
         if (_isCancelled) break;
 
-        state = state.copyWith(statusMessage: '$blogName sitemap 로딩 중...');
+        state =
+            state.copyWith(statusMessage: '$blogName sitemap 로딩 중...');
 
         try {
           final sitemapUrl = _getSitemapUrl(blogName);
           final urls = await SitemapParser.parseUrls(sitemapUrl);
           allUrls.addAll(urls);
         } catch (e) {
-          // 개별 블로그 sitemap 오류는 무시하고 계속 진행
+          // 개별 블로그 sitemap 오류는 무시
         }
       }
 
       if (_isCancelled) {
-        state = state.copyWith(isRunning: false, clearStatus: true);
+        state = state.copyWith(
+            isRunning: false, clearStatus: true, clearPhase: true);
         return;
       }
 
@@ -127,53 +338,131 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
           isRunning: false,
           errorMessage: 'Sitemap에서 URL을 찾을 수 없습니다.',
           clearStatus: true,
+          clearPhase: true,
         );
         return;
       }
 
-      state = state.copyWith(allUrls: allUrls);
+      state = state.copyWith(
+        allUrls: allUrls,
+        urlsToInspect: allUrls,
+        totalCount: allUrls.length,
+      );
 
-      // 3. 이미 색인된 URL 제외
-      state = state.copyWith(statusMessage: '색인 상태 확인 중...');
-      final indexedUrls = await IndexingStorageService.loadIndexedUrls();
-      final pendingUrls = allUrls.where((url) => !indexedUrls.containsKey(url)).toList();
+      // 4. URL Inspection - 색인 상태 확인
+      state = state.copyWith(
+        currentPhase: '색인 상태 확인',
+        statusMessage: '색인 상태 확인 중...',
+        currentIndex: 0,
+      );
 
-      if (pendingUrls.isEmpty) {
+      final inspectionService =
+          UrlInspectionService(accessToken: tokens.accessToken);
+      final results = <UrlIndexingResult>[];
+      final urlsToIndex = <String>[];
+      var inspectionQuota = state.remainingInspectionQuota;
+
+      for (int i = 0; i < allUrls.length; i++) {
+        if (_isCancelled) break;
+
+        final url = allUrls[i];
+        state = state.copyWith(
+          currentIndex: i + 1,
+          statusMessage: '색인 상태 확인 중... (${i + 1}/${allUrls.length})',
+        );
+
+        // 할당량 확인
+        if (inspectionQuota <= 0) {
+          // 남은 URL은 검사 없이 색인 요청 대상에 추가
+          urlsToIndex.addAll(allUrls.sublist(i));
+          break;
+        }
+
+        final siteUrl = UrlInspectionService.extractSiteUrl(url);
+        final inspectionResult = await inspectionService.inspectUrl(
+          url: url,
+          siteUrl: siteUrl,
+        );
+
+        await IndexingStorageService.incrementInspectionCount();
+        inspectionQuota--;
+
+        if (inspectionResult.status == UrlIndexingStatus.indexed) {
+          // 이미 색인됨
+          results.add(UrlIndexingResult(
+            url: url,
+            status: IndexingStatus.alreadyIndexed,
+          ));
+        } else if (inspectionResult.status == UrlIndexingStatus.error &&
+            inspectionResult.errorMessage?.contains('429') == true) {
+          // Rate Limit - 남은 URL은 색인 요청 대상에 추가
+          urlsToIndex.addAll(allUrls.sublist(i));
+          break;
+        } else {
+          // 색인 안됨 또는 알 수 없음 - 색인 요청 필요
+          urlsToIndex.add(url);
+        }
+
+        state = state.copyWith(
+          results: List.from(results),
+          remainingInspectionQuota: inspectionQuota,
+        );
+
+        // Rate Limiting: 0.5초 딜레이
+        if (i < allUrls.length - 1 && !_isCancelled) {
+          await Future.delayed(const Duration(milliseconds: 500));
+        }
+      }
+
+      if (_isCancelled) {
+        state = state.copyWith(
+            isRunning: false, clearStatus: true, clearPhase: true);
+        return;
+      }
+
+      state = state.copyWith(urlsToIndex: urlsToIndex);
+
+      // 5. 색인 요청
+      if (urlsToIndex.isEmpty) {
         state = state.copyWith(
           isRunning: false,
           statusMessage: '모든 URL이 이미 색인되어 있습니다.',
+          clearPhase: true,
         );
         return;
       }
 
-      state = state.copyWith(pendingUrls: pendingUrls);
+      state = state.copyWith(
+        currentPhase: '색인 요청',
+        statusMessage: '색인 요청 중...',
+        currentIndex: 0,
+        totalCount: urlsToIndex.length,
+      );
 
-      // 4. 색인 요청 진행
-      final results = <UrlIndexingResult>[];
-      var remainingQuota = state.remainingQuota;
+      var indexingQuota = state.remainingIndexingQuota;
 
-      for (int i = 0; i < pendingUrls.length; i++) {
+      for (int i = 0; i < urlsToIndex.length; i++) {
         if (_isCancelled) break;
 
-        final url = pendingUrls[i];
+        final url = urlsToIndex[i];
         state = state.copyWith(
           currentIndex: i + 1,
-          statusMessage: '색인 요청 중... (${i + 1}/${pendingUrls.length})',
+          statusMessage: '색인 요청 중... (${i + 1}/${urlsToIndex.length})',
         );
 
-        // 할당량 확인 - 초과 시 남은 URL 모두 스킵 처리하고 종료
-        if (remainingQuota <= 0) {
-          // 남은 모든 URL을 스킵 처리
-          for (int j = i; j < pendingUrls.length; j++) {
+        // 할당량 확인
+        if (indexingQuota <= 0) {
+          // 남은 URL 스킵 처리
+          for (int j = i; j < urlsToIndex.length; j++) {
             results.add(UrlIndexingResult(
-              url: pendingUrls[j],
+              url: urlsToIndex[j],
               status: IndexingStatus.skipped,
               errorMessage: '일일 할당량 초과',
             ));
           }
           state = state.copyWith(
             results: List.from(results),
-            errorMessage: '일일 할당량(200개)을 모두 사용했습니다. 내일 다시 시도해주세요.',
+            errorMessage: '일일 할당량(200개)을 모두 사용했습니다.',
           );
           break;
         }
@@ -188,12 +477,12 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
             status: IndexingStatus.success,
           ));
         } else {
-          // 429 에러 (Rate Limit) 시 중단
+          // 429 에러 시 중단
           if (apiResult.errorMessage?.contains('429') == true) {
             results.add(UrlIndexingResult(
               url: url,
               status: IndexingStatus.failed,
-              errorMessage: 'API 요청 한도 초과 - 잠시 후 다시 시도해주세요.',
+              errorMessage: 'API 요청 한도 초과',
             ));
             await IndexingStorageService.incrementTodayCount();
             state = state.copyWith(
@@ -211,40 +500,43 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
           ));
         }
 
-        remainingQuota--;
+        indexingQuota--;
         state = state.copyWith(
           results: List.from(results),
-          remainingQuota: remainingQuota,
+          remainingIndexingQuota: indexingQuota,
         );
 
         // Rate Limiting: 1초 딜레이
-        if (i < pendingUrls.length - 1 && !_isCancelled) {
+        if (i < urlsToIndex.length - 1 && !_isCancelled) {
           await Future.delayed(const Duration(milliseconds: 1000));
         }
       }
 
-      // 오래된 기록 정리
+      // 정리
       await IndexingStorageService.cleanupOldRecords();
 
       state = state.copyWith(
         isRunning: false,
         clearStatus: true,
+        clearPhase: true,
       );
     } catch (e) {
       state = state.copyWith(
         isRunning: false,
         errorMessage: e.toString(),
         clearStatus: true,
+        clearPhase: true,
       );
     }
   }
 
-  /// 진행 중인 색인 요청 취소
+  /// 진행 중인 작업 취소
   void cancel() {
     _isCancelled = true;
     state = state.copyWith(
       isRunning: false,
       statusMessage: '취소됨',
+      clearPhase: true,
     );
   }
 
@@ -257,11 +549,14 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
   void reset() {
     state = state.copyWith(
       allUrls: [],
-      pendingUrls: [],
+      urlsToInspect: [],
+      urlsToIndex: [],
       results: [],
       currentIndex: 0,
+      totalCount: 0,
       clearError: true,
       clearStatus: true,
+      clearPhase: true,
     );
   }
 }

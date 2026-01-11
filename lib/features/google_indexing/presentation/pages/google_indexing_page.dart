@@ -4,6 +4,7 @@ import 'package:csias_desktop/core/widgets/app_card.dart';
 import 'package:csias_desktop/features/google_indexing/data/indexing_storage_service.dart';
 import 'package:csias_desktop/features/google_indexing/domain/models/indexing_result.dart';
 import 'package:csias_desktop/features/google_indexing/presentation/state/google_indexing_provider.dart';
+import 'package:csias_desktop/features/google_indexing/presentation/state/google_indexing_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,6 +29,8 @@ class GoogleIndexingPage extends ConsumerWidget {
               children: [
                 Row(
                   children: [
+                    Icon(Icons.settings, size: 20, color: scheme.primary),
+                    const SizedBox(width: AppSpacing.s8),
                     Text('설정', style: context.textTheme.titleMedium),
                     const Spacer(),
                     IconButton(
@@ -37,18 +40,38 @@ class GoogleIndexingPage extends ConsumerWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: AppSpacing.s12),
+                Divider(height: 1, color: scheme.outlineVariant),
                 const SizedBox(height: AppSpacing.s16),
 
-                // 서비스 계정 JSON 파일 상태
-                _buildServiceAccountStatus(context, state),
-                const SizedBox(height: AppSpacing.s12),
+                // 서비스 계정 & OAuth 상태 (가로 배치)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 서비스 계정 JSON 파일 상태
+                    Expanded(child: _buildServiceAccountStatus(context, state)),
+                    const SizedBox(width: AppSpacing.s16),
+                    // OAuth 인증 상태
+                    Expanded(
+                        child: _buildOAuthStatus(context, state, controller)),
+                  ],
+                ),
 
-                // 등록된 블로그 목록
-                _buildBlogList(context, state),
-                const SizedBox(height: AppSpacing.s12),
+                const SizedBox(height: AppSpacing.s16),
+                Divider(height: 1, color: scheme.outlineVariant),
+                const SizedBox(height: AppSpacing.s16),
 
-                // 일일 할당량 표시
-                _buildQuotaStatus(context, state),
+                // 등록된 블로그 & 할당량 (가로 배치)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 등록된 블로그 목록
+                    Expanded(child: _buildBlogList(context, state)),
+                    const SizedBox(width: AppSpacing.s16),
+                    // 일일 할당량 표시
+                    Expanded(child: _buildQuotaStatus(context, state)),
+                  ],
+                ),
               ],
             ),
           ),
@@ -67,8 +90,32 @@ class GoogleIndexingPage extends ConsumerWidget {
                   // 헤더
                   Row(
                     children: [
+                      Icon(Icons.send, size: 20, color: scheme.primary),
+                      const SizedBox(width: AppSpacing.s8),
                       Text('색인 요청', style: context.textTheme.titleMedium),
                       const Spacer(),
+
+                      // 현재 단계 표시
+                      if (state.currentPhase != null) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.s8,
+                            vertical: AppSpacing.s4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: scheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            state.currentPhase!,
+                            style: context.textTheme.bodySmall?.copyWith(
+                              color: scheme.onPrimaryContainer,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.s8),
+                      ],
 
                       // 진행 상태
                       if (state.isRunning || state.results.isNotEmpty) ...[
@@ -109,62 +156,77 @@ class GoogleIndexingPage extends ConsumerWidget {
                     ],
                   ),
 
-                  const SizedBox(height: AppSpacing.s16),
+                  const SizedBox(height: AppSpacing.s12),
+                  Divider(height: 1, color: scheme.outlineVariant),
+                  const SizedBox(height: AppSpacing.s12),
 
-                  // 상태 메시지
-                  if (state.statusMessage != null) ...[
-                    Container(
-                      padding: const EdgeInsets.all(AppSpacing.s12),
-                      decoration: BoxDecoration(
-                        color: scheme.primaryContainer.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.info_outline,
-                            color: scheme.primary,
-                            size: 20,
+                  // 상태/에러 메시지 영역
+                  if (state.statusMessage != null ||
+                      state.errorMessage != null) ...[
+                    // 상태 메시지
+                    if (state.statusMessage != null)
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.s12),
+                        decoration: BoxDecoration(
+                          color: scheme.primaryContainer.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: scheme.primary.withValues(alpha: 0.3),
                           ),
-                          const SizedBox(width: AppSpacing.s8),
-                          Expanded(
-                            child: Text(
-                              state.statusMessage!,
-                              style: TextStyle(color: scheme.onSurface),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: scheme.primary,
+                              size: 20,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: AppSpacing.s8),
+                            Expanded(
+                              child: Text(
+                                state.statusMessage!,
+                                style: TextStyle(color: scheme.onSurface),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+
+                    if (state.statusMessage != null &&
+                        state.errorMessage != null)
+                      const SizedBox(height: AppSpacing.s8),
+
+                    // 에러 메시지
+                    if (state.errorMessage != null)
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.s12),
+                        decoration: BoxDecoration(
+                          color: scheme.errorContainer,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: scheme.error),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.error_outline, color: scheme.error),
+                            const SizedBox(width: AppSpacing.s8),
+                            Expanded(
+                              child: Text(
+                                state.errorMessage!,
+                                style:
+                                    TextStyle(color: scheme.onErrorContainer),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: controller.clearError,
+                              icon: const Icon(Icons.close),
+                              iconSize: 18,
+                            ),
+                          ],
+                        ),
+                      ),
+
                     const SizedBox(height: AppSpacing.s12),
-                  ],
-
-                  // 에러 메시지
-                  if (state.errorMessage != null) ...[
-                    Container(
-                      padding: const EdgeInsets.all(AppSpacing.s12),
-                      decoration: BoxDecoration(
-                        color: scheme.errorContainer,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.error_outline, color: scheme.error),
-                          const SizedBox(width: AppSpacing.s8),
-                          Expanded(
-                            child: Text(
-                              state.errorMessage!,
-                              style: TextStyle(color: scheme.onErrorContainer),
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: controller.clearError,
-                            icon: const Icon(Icons.close),
-                            iconSize: 18,
-                          ),
-                        ],
-                      ),
-                    ),
+                    Divider(height: 1, color: scheme.outlineVariant),
                     const SizedBox(height: AppSpacing.s12),
                   ],
 
@@ -172,6 +234,32 @@ class GoogleIndexingPage extends ConsumerWidget {
                   if (state.results.isNotEmpty && !state.isRunning) ...[
                     _buildResultSummary(context, state),
                     const SizedBox(height: AppSpacing.s12),
+                    Divider(height: 1, color: scheme.outlineVariant),
+                    const SizedBox(height: AppSpacing.s12),
+                  ],
+
+                  // 결과 목록 헤더
+                  if (state.results.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        Icon(Icons.list_alt, size: 18, color: scheme.primary),
+                        const SizedBox(width: AppSpacing.s8),
+                        Text(
+                          '결과 목록',
+                          style: context.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${state.results.length}개',
+                          style: context.textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.s8),
                   ],
 
                   // 결과 목록
@@ -188,14 +276,26 @@ class GoogleIndexingPage extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: AppSpacing.s12),
                                 Text(
-                                  '"전체 색인 요청" 버튼을 클릭하면\n등록된 모든 블로그의 인덱싱 되지 않은 URL을 색인 요청합니다.',
+                                  '"전체 색인 요청" 버튼을 클릭하면\n등록된 모든 블로그의 색인되지 않은 URL을 색인 요청합니다.',
                                   style: TextStyle(color: scheme.outline),
                                   textAlign: TextAlign.center,
                                 ),
                               ],
                             ),
                           )
-                        : _buildResultList(context, state),
+                        : Container(
+                            decoration: BoxDecoration(
+                              color: scheme.surfaceContainerLowest,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: scheme.outlineVariant,
+                              ),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: _buildResultList(context, state),
+                            ),
+                          ),
                   ),
                 ],
               ),
@@ -208,9 +308,9 @@ class GoogleIndexingPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildServiceAccountStatus(BuildContext context, dynamic state) {
+  Widget _buildServiceAccountStatus(BuildContext context, GoogleIndexingState state) {
     final scheme = context.colorScheme;
-    final hasServiceAccount = state.hasServiceAccount as bool;
+    final hasServiceAccount = state.hasServiceAccount;
     final path = IndexingStorageService.serviceAccountPath;
 
     return Container(
@@ -237,7 +337,7 @@ class GoogleIndexingPage extends ConsumerWidget {
               ),
               const SizedBox(width: AppSpacing.s8),
               Text(
-                '서비스 계정 JSON 파일',
+                '서비스 계정 (Indexing API)',
                 style: context.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -296,9 +396,166 @@ class GoogleIndexingPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildBlogList(BuildContext context, dynamic state) {
+  Widget _buildOAuthStatus(
+      BuildContext context, GoogleIndexingState state, dynamic controller) {
     final scheme = context.colorScheme;
-    final blogNames = state.blogNames as List<String>;
+    final authStatus = state.authStatus;
+    final oauthPath = IndexingStorageService.oauthCredentialsPath;
+
+    final isAuthenticated = authStatus == AuthStatus.authenticated;
+    final isAuthenticating = authStatus == AuthStatus.authenticating;
+    final needsCredentials = authStatus == AuthStatus.notConfigured;
+
+    Color statusColor;
+    IconData statusIcon;
+    String statusText;
+
+    if (isAuthenticated) {
+      statusColor = Colors.green;
+      statusIcon = Icons.check_circle;
+      statusText = '인증됨';
+    } else if (isAuthenticating) {
+      statusColor = Colors.orange;
+      statusIcon = Icons.hourglass_empty;
+      statusText = '인증 중...';
+    } else if (needsCredentials) {
+      statusColor = scheme.error;
+      statusIcon = Icons.error_outline;
+      statusText = '자격증명 없음';
+    } else {
+      statusColor = Colors.orange;
+      statusIcon = Icons.warning;
+      statusText = '인증 필요';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.s12),
+      decoration: BoxDecoration(
+        color: isAuthenticated
+            ? Colors.green.withValues(alpha: 0.1)
+            : needsCredentials
+                ? scheme.errorContainer.withValues(alpha: 0.5)
+                : Colors.orange.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: statusColor, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(statusIcon, color: statusColor, size: 20),
+              const SizedBox(width: AppSpacing.s8),
+              Expanded(
+                child: Text(
+                  'OAuth 2.0 (URL Inspection)',
+                  style: context.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Text(
+                statusText,
+                style: context.textTheme.bodySmall?.copyWith(
+                  color: statusColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.s8),
+          if (needsCredentials) ...[
+            Text(
+              oauthPath,
+              style: context.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+                fontFamily: 'monospace',
+                fontSize: 11,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: AppSpacing.s4),
+            Text(
+              '위 경로에 OAuth 자격증명 JSON 파일을 복사해주세요.',
+              style: context.textTheme.bodySmall?.copyWith(color: scheme.error),
+            ),
+          ] else if (isAuthenticating) ...[
+            Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: AppSpacing.s8),
+                Text(
+                  '브라우저에서 인증을 완료해주세요...',
+                  style: context.textTheme.bodySmall,
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => controller.cancelAuthentication(),
+                  child: const Text('취소'),
+                ),
+              ],
+            ),
+          ] else if (isAuthenticated) ...[
+            Row(
+              children: [
+                Text(
+                  'Google 계정으로 인증됨',
+                  style: context.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () => controller.logout(),
+                  icon: const Icon(Icons.logout, size: 16),
+                  label: const Text('로그아웃'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: scheme.error,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.s8,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            // notAuthenticated
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'URL Inspection API 사용을 위해 인증이 필요합니다.',
+                    style: context.textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: () => controller.startAuthentication(),
+                  icon: const Icon(Icons.login, size: 16),
+                  label: const Text('인증'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.s12,
+                      vertical: AppSpacing.s8,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBlogList(BuildContext context, GoogleIndexingState state) {
+    final scheme = context.colorScheme;
+    final blogNames = state.blogNames;
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.s12),
@@ -357,11 +614,18 @@ class GoogleIndexingPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildQuotaStatus(BuildContext context, dynamic state) {
+  Widget _buildQuotaStatus(BuildContext context, GoogleIndexingState state) {
     final scheme = context.colorScheme;
-    final remainingQuota = state.remainingQuota as int;
-    final usedQuota = IndexingStorageService.defaultDailyLimit - remainingQuota;
-    final percent = usedQuota / IndexingStorageService.defaultDailyLimit;
+    final remainingIndexing = state.remainingIndexingQuota;
+    final remainingInspection = state.remainingInspectionQuota;
+    final usedIndexing =
+        IndexingStorageService.defaultDailyLimit - remainingIndexing;
+    final usedInspection =
+        IndexingStorageService.defaultInspectionLimit - remainingInspection;
+    final indexingPercent =
+        usedIndexing / IndexingStorageService.defaultDailyLimit;
+    final inspectionPercent =
+        usedInspection / IndexingStorageService.defaultInspectionLimit;
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.s12),
@@ -382,37 +646,82 @@ class GoogleIndexingPage extends ConsumerWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.s12),
+
+          // Indexing API 할당량
+          Row(
+            children: [
+              Text(
+                'Indexing API',
+                style: context.textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
               const Spacer(),
               Text(
-                '$usedQuota / ${IndexingStorageService.defaultDailyLimit}',
+                '$usedIndexing / ${IndexingStorageService.defaultDailyLimit}',
                 style: context.textTheme.bodySmall?.copyWith(
-                  color: remainingQuota > 0 ? scheme.primary : scheme.error,
+                  color: remainingIndexing > 0 ? scheme.primary : scheme.error,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.s8),
+          const SizedBox(height: AppSpacing.s4),
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: percent,
-              minHeight: 8,
+              value: indexingPercent,
+              minHeight: 6,
               backgroundColor: scheme.surfaceContainerHighest,
               valueColor: AlwaysStoppedAnimation(
-                remainingQuota > 50
+                remainingIndexing > 50
                     ? Colors.green
-                    : remainingQuota > 0
-                    ? Colors.orange
-                    : scheme.error,
+                    : remainingIndexing > 0
+                        ? Colors.orange
+                        : scheme.error,
               ),
             ),
           ),
+
+          const SizedBox(height: AppSpacing.s12),
+
+          // URL Inspection API 할당량
+          Row(
+            children: [
+              Text(
+                'URL Inspection',
+                style: context.textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '$usedInspection / ${IndexingStorageService.defaultInspectionLimit}',
+                style: context.textTheme.bodySmall?.copyWith(
+                  color:
+                      remainingInspection > 0 ? scheme.primary : scheme.error,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: AppSpacing.s4),
-          Text(
-            '남은 요청: $remainingQuota개',
-            style: context.textTheme.bodySmall?.copyWith(
-              color: scheme.onSurfaceVariant,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: inspectionPercent,
+              minHeight: 6,
+              backgroundColor: scheme.surfaceContainerHighest,
+              valueColor: AlwaysStoppedAnimation(
+                remainingInspection > 500
+                    ? Colors.green
+                    : remainingInspection > 0
+                        ? Colors.orange
+                        : scheme.error,
+              ),
             ),
           ),
         ],
@@ -420,7 +729,8 @@ class GoogleIndexingPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildProgressIndicator(BuildContext context, dynamic state) {
+  Widget _buildProgressIndicator(
+      BuildContext context, GoogleIndexingState state) {
     final scheme = context.colorScheme;
 
     return Row(
@@ -435,9 +745,8 @@ class GoogleIndexingPage extends ConsumerWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
-                  value: state.progressPercent > 0
-                      ? state.progressPercent
-                      : null,
+                  value:
+                      state.progressPercent > 0 ? state.progressPercent : null,
                   minHeight: 6,
                   backgroundColor: scheme.surfaceContainerHighest,
                 ),
@@ -456,7 +765,7 @@ class GoogleIndexingPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildResultSummary(BuildContext context, dynamic state) {
+  Widget _buildResultSummary(BuildContext context, GoogleIndexingState state) {
     final scheme = context.colorScheme;
     final summary = state.summary;
 
@@ -465,14 +774,34 @@ class GoogleIndexingPage extends ConsumerWidget {
       decoration: BoxDecoration(
         color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: scheme.outlineVariant),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
+      child: Column(
         children: [
-          _buildSummaryItem(context, '전체', summary.total, scheme.primary),
-          _buildSummaryItem(context, '성공', summary.success, Colors.green),
-          _buildSummaryItem(context, '실패', summary.failed, scheme.error),
-          _buildSummaryItem(context, '건너뜀', summary.skipped, Colors.orange),
+          Row(
+            children: [
+              Icon(Icons.analytics, size: 18, color: scheme.primary),
+              const SizedBox(width: AppSpacing.s8),
+              Text(
+                '결과 요약',
+                style: context.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.s12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildSummaryItem(context, '전체', summary.total, scheme.primary),
+              _buildSummaryItem(context, '성공', summary.success, Colors.green),
+              _buildSummaryItem(
+                  context, '이미 색인됨', summary.alreadyIndexed, Colors.blue),
+              _buildSummaryItem(context, '실패', summary.failed, scheme.error),
+              _buildSummaryItem(context, '건너뜀', summary.skipped, Colors.orange),
+            ],
+          ),
         ],
       ),
     );
@@ -503,27 +832,41 @@ class GoogleIndexingPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildResultList(BuildContext context, dynamic state) {
+  Widget _buildResultList(BuildContext context, GoogleIndexingState state) {
     final scheme = context.colorScheme;
 
     return ListView.builder(
       itemCount: state.results.length,
       itemBuilder: (context, index) {
-        final result = state.results[index] as UrlIndexingResult;
+        final result = state.results[index];
         final isSuccess = result.status == IndexingStatus.success;
         final isSkipped = result.status == IndexingStatus.skipped;
+        final isAlreadyIndexed = result.status == IndexingStatus.alreadyIndexed;
 
         IconData icon;
         Color iconColor;
         if (isSuccess) {
           icon = Icons.check_circle;
           iconColor = Colors.green;
+        } else if (isAlreadyIndexed) {
+          icon = Icons.verified;
+          iconColor = Colors.blue;
         } else if (isSkipped) {
           icon = Icons.skip_next;
           iconColor = Colors.orange;
         } else {
           icon = Icons.error;
           iconColor = scheme.error;
+        }
+
+        String? subtitle;
+        Color? subtitleColor;
+        if (isAlreadyIndexed) {
+          subtitle = '이미 색인됨';
+          subtitleColor = Colors.blue;
+        } else if (result.errorMessage != null) {
+          subtitle = result.errorMessage;
+          subtitleColor = isSkipped ? Colors.orange : scheme.error;
         }
 
         return ListTile(
@@ -534,11 +877,11 @@ class GoogleIndexingPage extends ConsumerWidget {
             style: context.textTheme.bodySmall,
             overflow: TextOverflow.ellipsis,
           ),
-          subtitle: result.errorMessage != null
+          subtitle: subtitle != null
               ? Text(
-                  result.errorMessage!,
+                  subtitle,
                   style: TextStyle(
-                    color: isSkipped ? Colors.orange : scheme.error,
+                    color: subtitleColor,
                     fontSize: 11,
                   ),
                 )

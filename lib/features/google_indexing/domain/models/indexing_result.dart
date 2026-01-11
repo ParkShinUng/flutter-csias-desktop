@@ -3,7 +3,8 @@ enum IndexingStatus {
   pending,
   success,
   failed,
-  skipped, // 이미 색인됨 또는 할당량 초과로 건너뜀
+  skipped, // 할당량 초과로 건너뜀
+  alreadyIndexed, // 이미 색인되어 있음
 }
 
 class UrlIndexingResult {
@@ -40,12 +41,14 @@ class IndexingResultSummary {
   final int success;
   final int failed;
   final int skipped;
+  final int alreadyIndexed;
 
   const IndexingResultSummary({
     required this.total,
     required this.success,
     required this.failed,
     this.skipped = 0,
+    this.alreadyIndexed = 0,
   });
 
   factory IndexingResultSummary.empty() => const IndexingResultSummary(
@@ -53,5 +56,6 @@ class IndexingResultSummary {
         success: 0,
         failed: 0,
         skipped: 0,
+        alreadyIndexed: 0,
       );
 }
