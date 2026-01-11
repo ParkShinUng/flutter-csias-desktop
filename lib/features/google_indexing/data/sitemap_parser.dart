@@ -3,8 +3,20 @@ import 'package:xml/xml.dart';
 
 /// Sitemap.xml에서 URL 목록을 추출하는 서비스
 class SitemapParser {
-  /// sitemap URL에서 모든 URL을 추출합니다.
-  static Future<List<String>> parseUrls(String sitemapUrl) async {
+  /// 티스토리 포스팅 URL 패턴 (숫자로 끝나는 URL)
+  static final _postingPattern = RegExp(r'/\d+$');
+
+  /// 포스팅 URL인지 확인
+  static bool isPostingUrl(String url) {
+    return _postingPattern.hasMatch(url);
+  }
+
+  /// sitemap URL에서 URL을 추출합니다.
+  /// [postingsOnly]가 true이면 포스팅 URL만 반환합니다.
+  static Future<List<String>> parseUrls(
+    String sitemapUrl, {
+    bool postingsOnly = true,
+  }) async {
     try {
       final response = await http.get(Uri.parse(sitemapUrl));
 
@@ -22,7 +34,7 @@ class SitemapParser {
           final loc = sitemap.findElements('loc').firstOrNull?.innerText;
           if (loc != null) {
             // 하위 sitemap을 재귀적으로 파싱
-            final subUrls = await parseUrls(loc);
+            final subUrls = await parseUrls(loc, postingsOnly: postingsOnly);
             urls.addAll(subUrls);
           }
         }
@@ -34,6 +46,10 @@ class SitemapParser {
       for (final urlElement in urlElements) {
         final loc = urlElement.findElements('loc').firstOrNull?.innerText;
         if (loc != null && loc.isNotEmpty) {
+          // 포스팅만 필터링 옵션 적용
+          if (postingsOnly && !isPostingUrl(loc)) {
+            continue;
+          }
           urls.add(loc);
         }
       }
