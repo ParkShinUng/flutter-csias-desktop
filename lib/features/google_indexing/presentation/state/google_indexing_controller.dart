@@ -380,6 +380,7 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
           final inspectionResult = await inspectionService.inspectUrl(
             url: url,
             siteUrl: siteUrl,
+            useLiveTest: state.useLiveTest,
           );
 
           await IndexingStorageService.incrementInspectionCount();

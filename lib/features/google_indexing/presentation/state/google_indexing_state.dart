@@ -18,6 +18,9 @@ class GoogleIndexingState {
   /// 실행 중 여부
   final bool isRunning;
 
+  /// 실제 URL 테스트 사용 여부 (Live Test)
+  final bool useLiveTest;
+
   /// 등록된 블로그 목록
   final List<String> blogNames;
 
@@ -58,6 +61,7 @@ class GoogleIndexingState {
     required this.hasServiceAccount,
     required this.authStatus,
     required this.isRunning,
+    required this.useLiveTest,
     required this.blogNames,
     required this.allUrls,
     required this.urlsToInspect,
@@ -89,6 +93,7 @@ class GoogleIndexingState {
         hasServiceAccount: false,
         authStatus: AuthStatus.notConfigured,
         isRunning: false,
+        useLiveTest: true,
         blogNames: [],
         allUrls: [],
         urlsToInspect: [],
@@ -139,6 +144,7 @@ class GoogleIndexingState {
     bool? hasServiceAccount,
     AuthStatus? authStatus,
     bool? isRunning,
+    bool? useLiveTest,
     List<String>? blogNames,
     List<String>? allUrls,
     List<String>? urlsToInspect,
@@ -159,6 +165,7 @@ class GoogleIndexingState {
       hasServiceAccount: hasServiceAccount ?? this.hasServiceAccount,
       authStatus: authStatus ?? this.authStatus,
       isRunning: isRunning ?? this.isRunning,
+      useLiveTest: useLiveTest ?? this.useLiveTest,
       blogNames: blogNames ?? this.blogNames,
       allUrls: allUrls ?? this.allUrls,
       urlsToInspect: urlsToInspect ?? this.urlsToInspect,

@@ -73,21 +73,33 @@ class UrlInspectionService {
   UrlInspectionService({required this.accessToken});
 
   /// URL의 색인 상태를 검사합니다.
+  ///
+  /// [useLiveTest] 가 true 이면 실제 URL 테스트(Live Test)를 수행합니다.
+  /// Live Test는 Google이 현재 URL을 실시간으로 크롤링하여 검사합니다.
+  /// false인 경우 캐시된 인덱스 정보를 조회합니다.
   Future<UrlInspectionResult> inspectUrl({
     required String url,
     required String siteUrl,
+    bool useLiveTest = false,
   }) async {
     try {
+      final requestBody = <String, dynamic>{
+        'inspectionUrl': url,
+        'siteUrl': siteUrl,
+      };
+
+      // Live Test 모드 활성화
+      if (useLiveTest) {
+        requestBody['inspectionType'] = 'LIVE';
+      }
+
       final response = await http.post(
         Uri.parse(_inspectionApiUrl),
         headers: {
           'Authorization': 'Bearer $accessToken',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
-          'inspectionUrl': url,
-          'siteUrl': siteUrl,
-        }),
+        body: jsonEncode(requestBody),
       );
 
       if (response.statusCode == 200) {
