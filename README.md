@@ -18,22 +18,45 @@
 
 ## 설치 방법
 
-### 사용자 설치
+### 원클릭 설치 (권장)
 
-1. `csias_desktop.dmg` 파일 다운로드
-2. DMG 파일 더블클릭하여 마운트
-3. `설치.command` 더블클릭
-4. 터미널이 열리면 자동 설치 진행
+터미널에서 아래 명령어를 실행하면 모든 것이 자동으로 설치됩니다:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/ParkShinUng/flutter-csias-desktop/master/scripts/setup.sh)"
+```
+
+설치되는 항목:
+- Homebrew (패키지 관리자)
+- Flutter SDK
+- Node.js
+- CSIAS Desktop 소스코드 및 의존성
+
+설치 위치: `~/Applications/csias_desktop`
+
+### 설치 후 사용
+
+```bash
+# 앱 실행
+cd ~/Applications/csias_desktop
+./scripts/run.sh
+
+# 업데이트 (최신 버전으로)
+./scripts/update.sh
+```
 
 ### 개발자 빌드
 
 ```bash
-# 의존성 설치
-flutter pub get
-cd assets/runner && npm install && cd ../..
+# 저장소 클론
+git clone https://github.com/ParkShinUng/flutter-csias-desktop.git
+cd flutter-csias-desktop
+
+# 환경 구축 (Node.js 바이너리, npm 모듈 설치)
+./scripts/setup_env.sh
 
 # 개발 모드 실행
-flutter run -d macos
+./scripts/run.sh
 
 # 릴리즈 빌드 및 DMG 생성
 ./scripts/build_release.sh
