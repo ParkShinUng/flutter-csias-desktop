@@ -19,9 +19,21 @@ echo "[1/5] Building Flutter macOS release..."
 cd "$PROJECT_DIR"
 flutter build macos --release
 
-# 2. Code Sign
+# 2. Fix permissions and Code Sign
 echo ""
-echo "[2/5] Signing application..."
+echo "[2/5] Fixing permissions and signing application..."
+
+# Node.js 바이너리에 실행 권한 부여
+NODE_BINARY="$BUILD_DIR/$APP_NAME.app/Contents/Frameworks/App.framework/Resources/flutter_assets/assets/bin/macos/node-darwin-x64-darwin-arm64"
+if [ -f "$NODE_BINARY" ]; then
+    echo "  - Setting execute permission for Node.js binary..."
+    chmod +x "$NODE_BINARY"
+    echo "  - Signing Node.js binary..."
+    codesign --force --sign - "$NODE_BINARY"
+fi
+
+# 앱 전체 서명
+echo "  - Signing application bundle..."
 codesign --force --deep --sign - "$BUILD_DIR/$APP_NAME.app"
 
 # 3. Prepare DMG staging folder
@@ -33,9 +45,8 @@ mkdir -p "$DMG_STAGING"
 # Copy app
 cp -R "$BUILD_DIR/$APP_NAME.app" "$DMG_STAGING/"
 
-# Copy and prepare installer script
-cp "$INSTALLER_SCRIPT" "$DMG_STAGING/설치.command"
-chmod +x "$DMG_STAGING/설치.command"
+# Create Applications symlink for drag-and-drop install
+ln -s /Applications "$DMG_STAGING/Applications"
 
 # Remove quarantine attributes from all files
 xattr -cr "$DMG_STAGING"
@@ -69,10 +80,10 @@ echo "Output: $OUTPUT_DIR/$APP_NAME.dmg"
 echo ""
 echo "사용자 안내문:"
 echo "----------------------------------------"
-echo "1. DMG 파일 열기"
-echo "2. '설치.command' 우클릭 → '열기' 선택"
-echo "3. 경고창에서 '열기' 클릭"
-echo "4. 터미널이 열리면 자동 설치 진행"
+echo "1. 터미널에서 아래 명령어 실행:"
 echo ""
-echo "※ 보안 경고가 나타나면 우클릭으로 열어야 합니다"
+echo "   xattr -cr ~/Downloads/$APP_NAME.dmg && open ~/Downloads/$APP_NAME.dmg"
+echo ""
+echo "2. DMG가 열리면 앱을 Applications 폴더로 드래그"
+echo "3. 앱 첫 실행 시 우클릭 → '열기' 선택"
 echo "----------------------------------------"

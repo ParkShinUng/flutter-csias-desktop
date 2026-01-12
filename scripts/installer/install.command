@@ -34,6 +34,13 @@ cp -R "$APP_PATH" "$DEST_PATH"
 echo "보안 속성 제거 중..."
 xattr -cr "$DEST_PATH"
 
+# Set execute permission for Node.js binary
+NODE_BINARY="$DEST_PATH/Contents/Frameworks/App.framework/Resources/flutter_assets/assets/bin/macos/node-darwin-x64-darwin-arm64"
+if [ -f "$NODE_BINARY" ]; then
+    echo "Node.js 바이너리 권한 설정 중..."
+    chmod +x "$NODE_BINARY"
+fi
+
 echo ""
 echo "========================================"
 echo "  ✅ 설치 완료!"
