@@ -6,9 +6,17 @@ class SitemapParser {
   /// 티스토리 포스팅 URL 패턴 (숫자로 끝나는 URL)
   static final _postingPattern = RegExp(r'/\d+$');
 
+  /// 모바일 URL 패턴 (/m/ 경로 포함)
+  static final _mobilePattern = RegExp(r'/m/');
+
   /// 포스팅 URL인지 확인
   static bool isPostingUrl(String url) {
     return _postingPattern.hasMatch(url);
+  }
+
+  /// 모바일 URL인지 확인
+  static bool isMobileUrl(String url) {
+    return _mobilePattern.hasMatch(url);
   }
 
   /// sitemap URL에서 URL을 추출합니다.
@@ -46,6 +54,10 @@ class SitemapParser {
       for (final urlElement in urlElements) {
         final loc = urlElement.findElements('loc').firstOrNull?.innerText;
         if (loc != null && loc.isNotEmpty) {
+          // 모바일 URL 제외
+          if (isMobileUrl(loc)) {
+            continue;
+          }
           // 포스팅만 필터링 옵션 적용
           if (postingsOnly && !isPostingUrl(loc)) {
             continue;
