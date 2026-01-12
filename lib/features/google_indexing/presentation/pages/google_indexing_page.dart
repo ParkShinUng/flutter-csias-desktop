@@ -45,16 +45,18 @@ class GoogleIndexingPage extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.s16),
 
                 // 서비스 계정 & OAuth 상태 (가로 배치)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 서비스 계정 JSON 파일 상태
-                    Expanded(child: _buildServiceAccountStatus(context, state)),
-                    const SizedBox(width: AppSpacing.s16),
-                    // OAuth 인증 상태
-                    Expanded(
-                        child: _buildOAuthStatus(context, state, controller)),
-                  ],
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // 서비스 계정 JSON 파일 상태
+                      Expanded(child: _buildServiceAccountStatus(context, state)),
+                      const SizedBox(width: AppSpacing.s16),
+                      // OAuth 인증 상태
+                      Expanded(
+                          child: _buildOAuthStatus(context, state, controller)),
+                    ],
+                  ),
                 ),
 
                 const SizedBox(height: AppSpacing.s16),
