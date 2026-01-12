@@ -68,6 +68,14 @@ NODE_DIR="$PROJECT_DIR/assets/bin/macos"
 NODE_BINARY="$NODE_DIR/node-darwin-x64-darwin-arm64"
 NODE_VERSION="v20.11.0"
 
+# Windows 플레이스홀더 생성 (Flutter 빌드 오류 방지)
+WINDOWS_DIR="$PROJECT_DIR/assets/bin/windows"
+mkdir -p "$WINDOWS_DIR"
+if [ ! -f "$WINDOWS_DIR/node.exe" ]; then
+    touch "$WINDOWS_DIR/node.exe"
+    print_step "Windows 플레이스홀더 생성"
+fi
+
 mkdir -p "$NODE_DIR"
 
 if [ -f "$NODE_BINARY" ]; then
