@@ -15,7 +15,6 @@ class UploadFileItem {
 
   UploadFileItem copyWith({
     UploadStatus? status,
-    int? sizeBytes,
     List<String>? tags,
   }) {
     return UploadFileItem(

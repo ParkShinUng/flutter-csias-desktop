@@ -27,12 +27,6 @@ class GoogleIndexingState {
   /// 전체 URL 목록 (sitemap에서 추출)
   final List<String> allUrls;
 
-  /// 색인 검사할 URL 목록
-  final List<String> urlsToInspect;
-
-  /// 색인 요청할 URL 목록 (검사 후 색인 안된 것)
-  final List<String> urlsToIndex;
-
   /// 색인 결과 목록
   final List<UrlIndexingResult> results;
 
@@ -64,8 +58,6 @@ class GoogleIndexingState {
     required this.useLiveTest,
     required this.blogNames,
     required this.allUrls,
-    required this.urlsToInspect,
-    required this.urlsToIndex,
     required this.results,
     this.currentPhase,
     required this.currentIndex,
@@ -96,8 +88,6 @@ class GoogleIndexingState {
         useLiveTest: true,
         blogNames: [],
         allUrls: [],
-        urlsToInspect: [],
-        urlsToIndex: [],
         results: [],
         currentIndex: 0,
         totalCount: 0,
@@ -147,8 +137,6 @@ class GoogleIndexingState {
     bool? useLiveTest,
     List<String>? blogNames,
     List<String>? allUrls,
-    List<String>? urlsToInspect,
-    List<String>? urlsToIndex,
     List<UrlIndexingResult>? results,
     String? currentPhase,
     int? currentIndex,
@@ -168,8 +156,6 @@ class GoogleIndexingState {
       useLiveTest: useLiveTest ?? this.useLiveTest,
       blogNames: blogNames ?? this.blogNames,
       allUrls: allUrls ?? this.allUrls,
-      urlsToInspect: urlsToInspect ?? this.urlsToInspect,
-      urlsToIndex: urlsToIndex ?? this.urlsToIndex,
       results: results ?? this.results,
       currentPhase: clearPhase ? null : (currentPhase ?? this.currentPhase),
       currentIndex: currentIndex ?? this.currentIndex,

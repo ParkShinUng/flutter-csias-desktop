@@ -194,8 +194,6 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
     state = state.copyWith(
       isRunning: true,
       allUrls: [],
-      urlsToInspect: [],
-      urlsToIndex: [],
       results: [],
       currentIndex: 0,
       totalCount: 0,
@@ -507,8 +505,6 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
   void reset() {
     state = state.copyWith(
       allUrls: [],
-      urlsToInspect: [],
-      urlsToIndex: [],
       results: [],
       currentIndex: 0,
       totalCount: 0,
