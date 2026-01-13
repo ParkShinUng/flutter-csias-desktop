@@ -252,8 +252,9 @@ if [ -f "$NODE_BINARY_IN_APP" ]; then
     codesign --force --sign - "$NODE_BINARY_IN_APP"
 fi
 
-# 앱 전체 서명
-codesign --force --deep --sign - "$BUILD_DIR/$APP_NAME.app"
+# 앱 전체 서명 (entitlements 적용)
+ENTITLEMENTS="$INSTALL_DIR/macos/Runner/Release.entitlements"
+codesign --force --deep --sign - --entitlements "$ENTITLEMENTS" "$BUILD_DIR/$APP_NAME.app"
 print_step "앱 서명 완료"
 
 #===============================================================================

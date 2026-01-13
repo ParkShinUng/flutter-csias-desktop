@@ -32,9 +32,10 @@ if [ -f "$NODE_BINARY" ]; then
     codesign --force --sign - "$NODE_BINARY"
 fi
 
-# 앱 전체 서명
-echo "  - Signing application bundle..."
-codesign --force --deep --sign - "$BUILD_DIR/$APP_NAME.app"
+# 앱 전체 서명 (entitlements 적용)
+echo "  - Signing application bundle with entitlements..."
+ENTITLEMENTS="$PROJECT_DIR/macos/Runner/Release.entitlements"
+codesign --force --deep --sign - --entitlements "$ENTITLEMENTS" "$BUILD_DIR/$APP_NAME.app"
 
 # 3. Prepare DMG staging folder
 echo ""
