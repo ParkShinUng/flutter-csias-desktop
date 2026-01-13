@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -50,7 +51,11 @@ class PostingErrorEvent extends PostingEvent {
 
 /// 포스팅 프로세스 실행 및 관리를 담당하는 서비스
 class PostingRunnerService {
+  static const _processTimeout = Duration(minutes: 10);
+
   Process? _process;
+  StreamSubscription<String>? _stdoutSubscription;
+  StreamSubscription<String>? _stderrSubscription;
 
   /// 현재 실행 중인지 여부
   bool get isRunning => _process != null;
@@ -123,7 +128,7 @@ class PostingRunnerService {
       bool hasError = false;
       String? lastStderr;
 
-      _process!.stdout
+      _stdoutSubscription = _process!.stdout
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .listen((line) {
@@ -133,7 +138,7 @@ class PostingRunnerService {
         }
       });
 
-      _process!.stderr
+      _stderrSubscription = _process!.stderr
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .listen((line) {
@@ -142,7 +147,21 @@ class PostingRunnerService {
         AppLogger.warning('Runner stderr: $line', tag: 'Runner');
       });
 
-      final exitCode = await _process!.exitCode;
+      // 타임아웃 적용된 프로세스 종료 대기
+      final exitCode = await _process!.exitCode.timeout(
+        _processTimeout,
+        onTimeout: () {
+          AppLogger.error(
+            '프로세스 타임아웃 (${_processTimeout.inMinutes}분)',
+            tag: 'Runner',
+          );
+          _process?.kill(ProcessSignal.sigkill);
+          throw TimeoutException('프로세스 타임아웃');
+        },
+      );
+
+      // 스트림 구독 정리
+      await _cleanupSubscriptions();
       _process = null;
 
       if (exitCode == 0 && !hasError) {
@@ -155,11 +174,19 @@ class PostingRunnerService {
         AppLogger.error(errorMsg, tag: 'Runner');
         return PostingResult.failure(errorMsg);
       }
+    } on TimeoutException {
+      await _cleanupSubscriptions();
+      _process = null;
+      return PostingResult.failure(
+        '포스팅 프로세스가 시간 초과되었습니다. (${_processTimeout.inMinutes}분)',
+      );
     } on ProcessException catch (e) {
+      await _cleanupSubscriptions();
       _process = null;
       AppLogger.error('프로세스 실행 실패', tag: 'Runner', error: e);
       return PostingResult.failure('Node.js 프로세스를 시작할 수 없습니다: ${e.message}');
     } catch (e, stackTrace) {
+      await _cleanupSubscriptions();
       _process = null;
       AppLogger.error(
         '포스팅 실행 중 예상치 못한 오류',
@@ -173,11 +200,21 @@ class PostingRunnerService {
 
   /// 실행 중인 포스팅을 중지합니다.
   Future<void> stop() async {
+    await _cleanupSubscriptions();
+
     final proc = _process;
     if (proc == null) return;
 
     await ProcessManager.instance.killProcess(proc);
     _process = null;
+  }
+
+  /// 스트림 구독을 정리합니다.
+  Future<void> _cleanupSubscriptions() async {
+    await _stdoutSubscription?.cancel();
+    await _stderrSubscription?.cancel();
+    _stdoutSubscription = null;
+    _stderrSubscription = null;
   }
 
   /// runner.js에 전달할 payload를 생성합니다.

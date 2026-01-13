@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:csias_desktop/core/extensions/build_context_extensions.dart';
 import 'package:csias_desktop/core/theme/app_spacing.dart';
 import 'package:csias_desktop/features/tistory_posting/domain/models/upload_file_item.dart';
@@ -115,6 +117,7 @@ class _FileTableRow extends StatefulWidget {
 class _FileTableRowState extends State<_FileTableRow> {
   late final TextEditingController _c;
   late final FocusNode _f;
+  Timer? _debounceTimer;
 
   @override
   void initState() {
@@ -125,6 +128,7 @@ class _FileTableRowState extends State<_FileTableRow> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _c.dispose();
     _f.dispose();
     super.dispose();
@@ -190,13 +194,16 @@ class _FileTableRowState extends State<_FileTableRow> {
                 ),
               ),
               onChanged: (value) {
-                final tags = value
-                    .split(',')
-                    .map((e) => e.trim())
-                    .where((e) => e.isNotEmpty)
-                    .toList();
+                _debounceTimer?.cancel();
+                _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+                  final tags = value
+                      .split(',')
+                      .map((e) => e.trim())
+                      .where((e) => e.isNotEmpty)
+                      .toList();
 
-                widget.onSubmitTags(widget.file.path, tags);
+                  widget.onSubmitTags(widget.file.path, tags);
+                });
               },
             ),
           ),

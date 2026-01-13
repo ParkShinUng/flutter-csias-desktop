@@ -55,6 +55,10 @@ class IndexingStorageService {
   static const int defaultDailyLimit = 200;
   static const int defaultInspectionLimit = 2000;
 
+  // 인메모리 캐시
+  static Map<String, dynamic>? _cache;
+  static bool _isDirty = false;
+
   /// 서비스 계정 JSON 파일 경로
   static String get serviceAccountPath {
     final separator = Platform.isWindows ? '\\' : '/';
@@ -79,97 +83,93 @@ class IndexingStorageService {
     return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
   }
 
-  /// 색인된 URL 목록 로드
-  /// 반환: { url: indexedDate }
-  static Future<Map<String, String>> loadIndexedUrls() async {
+  /// 캐시에서 데이터 로드 (필요시 파일에서 읽기)
+  static Future<Map<String, dynamic>> _loadCached() async {
+    if (_cache != null) return _cache!;
+
     try {
       final file = File(_indexedUrlsPath);
       if (!await file.exists()) {
-        return {};
+        _cache = {};
+        return _cache!;
       }
 
       final content = await file.readAsString();
-      final json = jsonDecode(content) as Map<String, dynamic>;
-      final urls = json['urls'] as Map<String, dynamic>? ?? {};
-      return urls.map((k, v) => MapEntry(k, v as String));
+      _cache = jsonDecode(content) as Map<String, dynamic>;
+      return _cache!;
     } catch (e) {
-      return {};
+      _cache = {};
+      return _cache!;
     }
+  }
+
+  /// 캐시 강제 저장 (배치 작업 종료 시 호출)
+  static Future<void> flushCache() async {
+    if (_isDirty && _cache != null) {
+      try {
+        final dir = Directory(UnifiedStorageService.storagePath);
+        if (!await dir.exists()) {
+          await dir.create(recursive: true);
+        }
+
+        final file = File(_indexedUrlsPath);
+        await file.writeAsString(jsonEncode(_cache));
+        _isDirty = false;
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+
+  /// 캐시 무효화
+  static void invalidateCache() {
+    _cache = null;
+    _isDirty = false;
+  }
+
+  /// 색인된 URL 목록 로드
+  /// 반환: { url: indexedDate }
+  static Future<Map<String, String>> loadIndexedUrls() async {
+    final json = await _loadCached();
+    final urls = json['urls'] as Map<String, dynamic>? ?? {};
+    return urls.map((k, v) => MapEntry(k, v as String));
   }
 
   /// 오늘 색인 요청 횟수 로드
   static Future<int> loadTodayRequestCount() async {
-    try {
-      final file = File(_indexedUrlsPath);
-      if (!await file.exists()) {
-        return 0;
-      }
-
-      final content = await file.readAsString();
-      final json = jsonDecode(content) as Map<String, dynamic>;
-      final dailyCounts = json['dailyCounts'] as Map<String, dynamic>? ?? {};
-      return (dailyCounts[_todayKey] as int?) ?? 0;
-    } catch (e) {
-      return 0;
-    }
+    final json = await _loadCached();
+    final dailyCounts = json['dailyCounts'] as Map<String, dynamic>? ?? {};
+    return (dailyCounts[_todayKey] as int?) ?? 0;
   }
 
-  /// URL을 색인됨으로 기록
+  /// URL을 색인됨으로 기록 (캐시 사용, 즉시 저장 안 함)
   static Future<void> markUrlAsIndexed(String url) async {
-    try {
-      final dir = Directory(UnifiedStorageService.storagePath);
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
+    final json = await _loadCached();
 
-      final file = File(_indexedUrlsPath);
-      Map<String, dynamic> json = {};
+    // URL 기록
+    final urls = (json['urls'] as Map<String, dynamic>?) ?? {};
+    urls[url] = _todayKey;
+    json['urls'] = urls;
 
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        json = jsonDecode(content) as Map<String, dynamic>;
-      }
+    // 오늘 요청 횟수 증가
+    final dailyCounts = (json['dailyCounts'] as Map<String, dynamic>?) ?? {};
+    dailyCounts[_todayKey] = ((dailyCounts[_todayKey] as int?) ?? 0) + 1;
+    json['dailyCounts'] = dailyCounts;
 
-      // URL 기록
-      final urls = (json['urls'] as Map<String, dynamic>?) ?? {};
-      urls[url] = _todayKey;
-      json['urls'] = urls;
-
-      // 오늘 요청 횟수 증가
-      final dailyCounts = (json['dailyCounts'] as Map<String, dynamic>?) ?? {};
-      dailyCounts[_todayKey] = ((dailyCounts[_todayKey] as int?) ?? 0) + 1;
-      json['dailyCounts'] = dailyCounts;
-
-      await file.writeAsString(const JsonEncoder.withIndent('  ').convert(json));
-    } catch (e) {
-      // ignore
-    }
+    _cache = json;
+    _isDirty = true;
   }
 
-  /// 오늘 요청 횟수 증가 (실패한 요청도 카운트)
+  /// 오늘 요청 횟수 증가 (캐시 사용, 즉시 저장 안 함)
   static Future<void> incrementTodayCount() async {
-    try {
-      final dir = Directory(UnifiedStorageService.storagePath);
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
+    final json = await _loadCached();
 
-      final file = File(_indexedUrlsPath);
-      Map<String, dynamic> json = {};
+    final dailyCounts = (json['dailyCounts'] as Map<String, dynamic>?) ?? {};
+    dailyCounts[_todayKey] = ((dailyCounts[_todayKey] as int?) ?? 0) + 1;
+    json['dailyCounts'] = dailyCounts;
 
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        json = jsonDecode(content) as Map<String, dynamic>;
-      }
-
-      final dailyCounts = (json['dailyCounts'] as Map<String, dynamic>?) ?? {};
-      dailyCounts[_todayKey] = ((dailyCounts[_todayKey] as int?) ?? 0) + 1;
-      json['dailyCounts'] = dailyCounts;
-
-      await file.writeAsString(const JsonEncoder.withIndent('  ').convert(json));
-    } catch (e) {
-      // ignore
-    }
+    _cache = json;
+    _isDirty = true;
   }
 
   /// 남은 일일 할당량
@@ -180,26 +180,25 @@ class IndexingStorageService {
 
   /// 오래된 기록 정리 (30일 이상)
   static Future<void> cleanupOldRecords() async {
-    try {
-      final file = File(_indexedUrlsPath);
-      if (!await file.exists()) return;
+    final json = await _loadCached();
 
-      final content = await file.readAsString();
-      final json = jsonDecode(content) as Map<String, dynamic>;
+    final cutoffDate = DateTime.now().subtract(const Duration(days: 30));
+    final cutoffKey =
+        '${cutoffDate.year}-${cutoffDate.month.toString().padLeft(2, '0')}-${cutoffDate.day.toString().padLeft(2, '0')}';
 
-      final cutoffDate = DateTime.now().subtract(const Duration(days: 30));
-      final cutoffKey =
-          '${cutoffDate.year}-${cutoffDate.month.toString().padLeft(2, '0')}-${cutoffDate.day.toString().padLeft(2, '0')}';
+    // 오래된 dailyCounts 정리
+    final dailyCounts = (json['dailyCounts'] as Map<String, dynamic>?) ?? {};
+    dailyCounts.removeWhere((key, _) => key.compareTo(cutoffKey) < 0);
+    json['dailyCounts'] = dailyCounts;
 
-      // 오래된 dailyCounts 정리
-      final dailyCounts = (json['dailyCounts'] as Map<String, dynamic>?) ?? {};
-      dailyCounts.removeWhere((key, _) => key.compareTo(cutoffKey) < 0);
-      json['dailyCounts'] = dailyCounts;
+    // 오래된 inspectionCounts 정리
+    final inspectionCounts =
+        (json['inspectionCounts'] as Map<String, dynamic>?) ?? {};
+    inspectionCounts.removeWhere((key, _) => key.compareTo(cutoffKey) < 0);
+    json['inspectionCounts'] = inspectionCounts;
 
-      await file.writeAsString(const JsonEncoder.withIndent('  ').convert(json));
-    } catch (e) {
-      // ignore
-    }
+    _cache = json;
+    _isDirty = true;
   }
 
   // ==================== OAuth 관련 ====================
@@ -304,47 +303,24 @@ class IndexingStorageService {
 
   /// 오늘 URL Inspection 요청 횟수 로드
   static Future<int> loadTodayInspectionCount() async {
-    try {
-      final file = File(_indexedUrlsPath);
-      if (!await file.exists()) return 0;
-
-      final content = await file.readAsString();
-      final json = jsonDecode(content) as Map<String, dynamic>;
-      final inspectionCounts =
-          json['inspectionCounts'] as Map<String, dynamic>? ?? {};
-      return (inspectionCounts[_todayKey] as int?) ?? 0;
-    } catch (e) {
-      return 0;
-    }
+    final json = await _loadCached();
+    final inspectionCounts =
+        json['inspectionCounts'] as Map<String, dynamic>? ?? {};
+    return (inspectionCounts[_todayKey] as int?) ?? 0;
   }
 
-  /// URL Inspection 요청 횟수 증가
+  /// URL Inspection 요청 횟수 증가 (캐시 사용, 즉시 저장 안 함)
   static Future<void> incrementInspectionCount() async {
-    try {
-      final dir = Directory(UnifiedStorageService.storagePath);
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
+    final json = await _loadCached();
 
-      final file = File(_indexedUrlsPath);
-      Map<String, dynamic> json = {};
+    final inspectionCounts =
+        (json['inspectionCounts'] as Map<String, dynamic>?) ?? {};
+    inspectionCounts[_todayKey] =
+        ((inspectionCounts[_todayKey] as int?) ?? 0) + 1;
+    json['inspectionCounts'] = inspectionCounts;
 
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        json = jsonDecode(content) as Map<String, dynamic>;
-      }
-
-      final inspectionCounts =
-          (json['inspectionCounts'] as Map<String, dynamic>?) ?? {};
-      inspectionCounts[_todayKey] =
-          ((inspectionCounts[_todayKey] as int?) ?? 0) + 1;
-      json['inspectionCounts'] = inspectionCounts;
-
-      await file.writeAsString(
-          const JsonEncoder.withIndent('  ').convert(json));
-    } catch (e) {
-      // ignore
-    }
+    _cache = json;
+    _isDirty = true;
   }
 
   /// 남은 URL Inspection 할당량

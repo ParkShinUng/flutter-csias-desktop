@@ -69,8 +69,17 @@ class UrlInspectionService {
       'https://searchconsole.googleapis.com/v1/urlInspection/index:inspect';
 
   final String accessToken;
+  final http.Client _client;
 
-  UrlInspectionService({required this.accessToken});
+  UrlInspectionService({
+    required this.accessToken,
+    http.Client? client,
+  }) : _client = client ?? http.Client();
+
+  /// HTTP 클라이언트를 정리합니다.
+  void dispose() {
+    _client.close();
+  }
 
   /// URL의 색인 상태를 검사합니다.
   ///
@@ -93,7 +102,7 @@ class UrlInspectionService {
         requestBody['inspectionType'] = 'LIVE';
       }
 
-      final response = await http.post(
+      final response = await _client.post(
         Uri.parse(_inspectionApiUrl),
         headers: {
           'Authorization': 'Bearer $accessToken',

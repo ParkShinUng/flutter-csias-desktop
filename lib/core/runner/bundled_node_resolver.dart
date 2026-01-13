@@ -15,14 +15,24 @@ class BundledNodePaths {
 }
 
 class BundledNodeResolver {
+  static BundledNodePaths? _cached;
+
   static BundledNodePaths resolve() {
+    if (_cached != null) return _cached!;
+
     if (Platform.isMacOS) {
-      return _resolveMacOS();
+      _cached = _resolveMacOS();
     } else if (Platform.isWindows) {
-      return _resolveWindows();
+      _cached = _resolveWindows();
     } else {
       throw UnsupportedError('Unsupported platform: ${Platform.operatingSystem}');
     }
+    return _cached!;
+  }
+
+  /// 캐시 무효화 (테스트용)
+  static void invalidateCache() {
+    _cached = null;
   }
 
   static BundledNodePaths _resolveMacOS() {
