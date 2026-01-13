@@ -293,9 +293,6 @@ echo -e "${YELLOW}실행 방법:${NC}"
 echo "  1. Desktop에서 $APP_NAME.app을 더블클릭"
 echo "  2. 또는 터미널에서: open \"$DESKTOP_DIR/$APP_NAME.app\""
 echo ""
-echo -e "${YELLOW}개발 모드 실행:${NC}"
-echo "  cd $INSTALL_DIR && ./scripts/run.sh"
-echo ""
 
 # 바로 실행할지 물어보기
 read -p "지금 CSIAS Desktop을 실행하시겠습니까? (y/n): " -n 1 -r

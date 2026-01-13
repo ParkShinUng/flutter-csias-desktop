@@ -27,77 +27,46 @@
 
 ## 설치 방법
 
-### 원클릭 설치 (권장)
+### 원클릭 설치 및 빌드 (권장)
 
-터미널에서 아래 명령어를 실행하면 모든 것이 자동으로 설치됩니다:
+터미널에서 아래 명령어를 실행하면 모든 것이 자동으로 설치되고 앱이 빌드됩니다:
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/ParkShinUng/flutter-csias-desktop/master/scripts/setup.sh)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/ParkShinUng/flutter-csias-desktop/master/scripts/install_and_build.sh)"
 ```
 
-**자동으로 설치되는 항목:**
-- Homebrew (패키지 관리자)
-- Git
-- Flutter SDK (앱 빌드 도구)
-- Node.js (자동화 스크립트용)
-- CSIAS Desktop 소스코드 및 의존성
+**자동으로 수행되는 작업:**
+1. 필요한 도구 설치 (Homebrew, Git, Flutter, Node.js)
+2. 소스코드 다운로드 → `~/Desktop/csias_desktop`
+3. 실행 환경 구축 (Node.js 바이너리, npm 모듈)
+4. Release 빌드 생성
+5. 실행 가능한 앱을 Desktop에 복사 → `~/Desktop/csias_desktop.app`
 
-**설치 위치:** `~/Applications/csias_desktop`
+### 앱 실행
 
-### 설치 후 사용
+설치 완료 후 Desktop에 있는 `csias_desktop.app`을 더블클릭하여 실행합니다.
 
+또는 터미널에서:
 ```bash
-# 프로젝트 폴더로 이동
-cd ~/Applications/csias_desktop
-
-# 앱 실행 (디버그 모드)
-./scripts/run.sh
-
-# 앱 실행 (릴리즈 모드)
-./scripts/run.sh release
-
-# 최신 버전으로 업데이트
-./scripts/update.sh
+open ~/Desktop/csias_desktop.app
 ```
 
-**빠른 실행 alias 설정 (선택사항):**
+### 업데이트
+
+최신 버전으로 업데이트하려면 `install_and_build.sh`를 다시 실행합니다:
 
 ```bash
-# ~/.zshrc에 alias 추가
-echo 'alias csias="cd ~/Applications/csias_desktop && ./scripts/run.sh"' >> ~/.zshrc
-source ~/.zshrc
-
-# 이제 터미널에서 csias 명령어로 실행 가능
-csias
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/ParkShinUng/flutter-csias-desktop/master/scripts/install_and_build.sh)"
 ```
 
-### 수동 업데이트
+### 개발자 모드 실행 (디버그)
 
-업데이트 스크립트는 다음 작업을 수행합니다:
-1. Git에서 최신 소스 가져오기
-2. Flutter 패키지 업데이트
-3. Runner 모듈 업데이트
+개발 중 핫 리로드가 필요한 경우:
 
 ```bash
-cd ~/Applications/csias_desktop
-./scripts/update.sh
-```
-
-### 개발자 빌드
-
-```bash
-# 저장소 클론
-git clone https://github.com/ParkShinUng/flutter-csias-desktop.git
-cd flutter-csias-desktop
-
-# 환경 구축 (Node.js 바이너리, npm 모듈 설치)
-./scripts/setup_env.sh
-
-# 개발 모드 실행
-./scripts/run.sh
-
-# 릴리즈 빌드 및 DMG 생성
-./scripts/build_release.sh
+cd ~/Desktop/csias_desktop
+./scripts/run.sh          # 디버그 모드
+./scripts/run.sh release  # 릴리즈 모드
 ```
 
 ## 사용 방법
@@ -136,52 +105,6 @@ cd flutter-csias-desktop
    - 자동으로 sitemap에서 URL 추출
    - 색인되지 않은 URL만 Indexing API로 요청
 
-## 스크립트 실행 순서
-
-### 초기 설치 흐름
-
-```
-setup.sh (원클릭 설치)
-    │
-    ├── 1. Homebrew 설치/확인
-    ├── 2. Git 설치/확인
-    ├── 3. Flutter SDK 설치/확인
-    ├── 4. Node.js 설치/확인
-    ├── 5. Git 저장소 클론 → ~/Applications/csias_desktop
-    │
-    └── setup_env.sh 호출
-            │
-            ├── 1. Flutter 패키지 설치 (flutter pub get)
-            ├── 2. Node.js 바이너리 다운로드 (macOS universal)
-            ├── 3. Windows 플레이스홀더 생성 (빌드 오류 방지)
-            ├── 4. Runner node_modules 설치 (npm install)
-            └── 5. Google Chrome 설치 확인
-```
-
-### 앱 실행 흐름
-
-```
-run.sh
-    │
-    ├── 환경 확인 (Flutter, Node.js 바이너리, node_modules)
-    ├── 누락 시 → setup_env.sh 자동 호출
-    │
-    └── flutter run -d macos (디버그) 또는
-        flutter build macos --release (릴리즈)
-```
-
-### 업데이트 흐름
-
-```
-update.sh
-    │
-    ├── 현재 버전 확인
-    ├── 로컬 변경사항 확인/정리
-    ├── git pull origin master
-    ├── flutter pub get
-    └── npm install (Runner 모듈)
-```
-
 ## 필수 파일 및 경로
 
 ### 앱 실행에 필요한 파일
@@ -189,7 +112,6 @@ update.sh
 | 파일/폴더 | 경로 | 설명 |
 |-----------|------|------|
 | Node.js 바이너리 | `assets/bin/macos/node-darwin-x64-darwin-arm64` | Playwright 실행용 |
-| Windows 플레이스홀더 | `assets/bin/windows/node.exe` | Flutter 빌드 오류 방지용 빈 파일 |
 | Runner 스크립트 | `assets/runner/runner.js` | Tistory 자동화 스크립트 |
 | Runner 모듈 | `assets/runner/node_modules/` | Playwright, cheerio 등 |
 | Google Chrome | `/Applications/Google Chrome.app` | 브라우저 자동화용 |
@@ -245,48 +167,46 @@ csias_desktop/
 │           └── presentation/   # UI, 상태 관리
 ├── assets/
 │   ├── bin/                    # 플랫폼별 바이너리
-│   │   ├── macos/              # Node.js (macOS universal)
-│   │   └── windows/            # Node.js (Windows, 플레이스홀더)
+│   │   └── macos/              # Node.js (macOS)
 │   ├── icon/                   # 앱 아이콘
 │   └── runner/                 # Node.js 자동화 스크립트
 │       ├── runner.js           # Playwright 기반 자동화
 │       ├── package.json        # npm 의존성
 │       └── node_modules/       # npm 모듈 (git 제외)
 ├── scripts/
-│   ├── setup.sh                # 원클릭 설치 스크립트
-│   ├── setup_env.sh            # 환경 구축 스크립트
-│   ├── run.sh                  # 앱 실행 스크립트
-│   ├── update.sh               # 업데이트 스크립트
-│   └── build_release.sh        # 릴리즈 빌드 스크립트
+│   ├── install_and_build.sh    # 원클릭 설치 및 빌드
+│   └── run.sh                  # 개발용 실행 스크립트
 └── macos/                      # macOS 네이티브 설정
 ```
 
-## 스크립트 상세 설명
+## 스크립트 설명
 
-### setup.sh
-- **용도**: 처음 설치할 때 한 번만 실행
-- **기능**: Homebrew, Git, Flutter, Node.js 설치 및 저장소 클론
-- **실행**: 터미널에서 curl 명령어로 실행
+### install_and_build.sh
 
-### setup_env.sh
-- **용도**: Git에 포함되지 않은 파일 설치
-- **기능**: Node.js 바이너리 다운로드, npm 모듈 설치, Flutter 패키지 설치
-- **자동 호출**: setup.sh, run.sh에서 필요시 자동 호출
+원클릭 설치 및 빌드 스크립트입니다. 다음 작업을 자동으로 수행합니다:
+
+1. **필수 도구 설치**: Homebrew, Git, Flutter, Node.js
+2. **소스코드 다운로드**: GitHub에서 클론
+3. **환경 구축**: Flutter 패키지, Node.js 바이너리, npm 모듈 설치
+4. **Release 빌드**: Flutter macOS 앱 빌드
+5. **앱 서명 및 복사**: Desktop에 실행 가능한 앱 복사
+
+```bash
+# 원격 실행
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/ParkShinUng/flutter-csias-desktop/master/scripts/install_and_build.sh)"
+
+# 로컬 실행 (소스가 있는 경우)
+./scripts/install_and_build.sh
+```
 
 ### run.sh
-- **용도**: 앱 실행
-- **옵션**:
-  - `./scripts/run.sh` - 디버그 모드 (개발용, 핫 리로드 지원)
-  - `./scripts/run.sh release` - 릴리즈 모드 (최적화됨)
 
-### update.sh
-- **용도**: 최신 버전으로 업데이트
-- **기능**: git pull, flutter pub get, npm install
+개발용 실행 스크립트입니다. 핫 리로드를 지원하는 디버그 모드로 앱을 실행합니다.
 
-### build_release.sh
-- **용도**: 배포용 DMG 파일 생성
-- **출력**: `dist/csias_desktop.dmg`
-- **포함 작업**: 빌드, Node.js 바이너리 서명, 앱 서명, DMG 생성
+```bash
+./scripts/run.sh          # 디버그 모드 (flutter run)
+./scripts/run.sh release  # 릴리즈 모드 (flutter build + open)
+```
 
 ## 기술 스택
 
@@ -303,15 +223,6 @@ csias_desktop/
 |-----|----------|
 | Indexing API | 200회 |
 | URL Inspection API | 2,000회 |
-
-## 빌드 스크립트
-
-```bash
-# 릴리즈 빌드 + DMG 생성
-./scripts/build_release.sh
-```
-
-출력: `dist/csias_desktop.dmg`
 
 ## 라이선스
 
