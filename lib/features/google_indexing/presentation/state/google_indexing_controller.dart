@@ -72,14 +72,17 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
         clientSecret: credentials.clientSecret,
       );
 
-      final result =
-          await _oauthService!.refreshAccessToken(tokens.refreshToken);
+      final result = await _oauthService!.refreshAccessToken(
+        tokens.refreshToken,
+      );
       if (result.success) {
-        await IndexingStorageService.saveOAuthTokens(OAuthTokens(
-          accessToken: result.accessToken!,
-          refreshToken: result.refreshToken!,
-          expiresAt: result.expiresAt!,
-        ));
+        await IndexingStorageService.saveOAuthTokens(
+          OAuthTokens(
+            accessToken: result.accessToken!,
+            refreshToken: result.refreshToken!,
+            expiresAt: result.expiresAt!,
+          ),
+        );
         return AuthStatus.authenticated;
       } else {
         return AuthStatus.notAuthenticated;
@@ -112,9 +115,7 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
   Future<void> startAuthentication() async {
     final credentials = await IndexingStorageService.loadOAuthCredentials();
     if (credentials == null) {
-      state = state.copyWith(
-        errorMessage: 'OAuth 자격증명 파일이 없습니다.',
-      );
+      state = state.copyWith(errorMessage: 'OAuth 자격증명 파일이 없습니다.');
       return;
     }
 
@@ -131,11 +132,13 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
     final result = await _oauthService!.authenticate();
 
     if (result.success) {
-      await IndexingStorageService.saveOAuthTokens(OAuthTokens(
-        accessToken: result.accessToken!,
-        refreshToken: result.refreshToken!,
-        expiresAt: result.expiresAt!,
-      ));
+      await IndexingStorageService.saveOAuthTokens(
+        OAuthTokens(
+          accessToken: result.accessToken!,
+          refreshToken: result.refreshToken!,
+          expiresAt: result.expiresAt!,
+        ),
+      );
 
       state = state.copyWith(
         authStatus: AuthStatus.authenticated,
@@ -177,16 +180,12 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
     await refresh();
 
     if (!state.hasServiceAccount) {
-      state = state.copyWith(
-        errorMessage: '서비스 계정 JSON 파일이 없습니다.',
-      );
+      state = state.copyWith(errorMessage: '서비스 계정 JSON 파일이 없습니다.');
       return;
     }
 
     if (state.blogNames.isEmpty) {
-      state = state.copyWith(
-        errorMessage: '등록된 블로그가 없습니다.',
-      );
+      state = state.copyWith(errorMessage: '등록된 블로그가 없습니다.');
       return;
     }
 
@@ -204,8 +203,9 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
 
     try {
       // 1. Indexing API 인증
-      await _indexingService
-          .authenticate(IndexingStorageService.serviceAccountPath);
+      await _indexingService.authenticate(
+        IndexingStorageService.serviceAccountPath,
+      );
 
       // 2. OAuth 인증 확인 및 필요시 자동 인증
       var tokens = await IndexingStorageService.loadOAuthTokens();
@@ -226,17 +226,16 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
 
         // 토큰이 있지만 만료된 경우 갱신 시도
         if (tokens != null && tokens.isExpired) {
-          state = state.copyWith(
-            statusMessage: '토큰 갱신 중...',
-          );
+          state = state.copyWith(statusMessage: '토큰 갱신 중...');
 
           _oauthService = GoogleOAuthService(
             clientId: credentials.clientId,
             clientSecret: credentials.clientSecret,
           );
 
-          final refreshResult =
-              await _oauthService!.refreshAccessToken(tokens.refreshToken);
+          final refreshResult = await _oauthService!.refreshAccessToken(
+            tokens.refreshToken,
+          );
 
           if (refreshResult.success) {
             tokens = OAuthTokens(
@@ -313,8 +312,7 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
       for (final blogName in state.blogNames) {
         if (_isCancelled) break;
 
-        state =
-            state.copyWith(statusMessage: '$blogName sitemap 로딩 중...');
+        state = state.copyWith(statusMessage: '$blogName sitemap 로딩 중...');
 
         try {
           final sitemapUrl = _getSitemapUrl(blogName);
@@ -327,7 +325,10 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
 
       if (_isCancelled) {
         state = state.copyWith(
-            isRunning: false, clearStatus: true, clearPhase: true);
+          isRunning: false,
+          clearStatus: true,
+          clearPhase: true,
+        );
         return;
       }
 
@@ -341,10 +342,7 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
         return;
       }
 
-      state = state.copyWith(
-        allUrls: allUrls,
-        totalCount: allUrls.length,
-      );
+      state = state.copyWith(allUrls: allUrls, totalCount: allUrls.length);
 
       // 4. URL별 색인 상태 확인 및 색인 요청 (배치 처리)
       state = state.copyWith(
@@ -353,8 +351,9 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
         currentIndex: 0,
       );
 
-      final inspectionService =
-          UrlInspectionService(accessToken: tokens.accessToken);
+      final inspectionService = UrlInspectionService(
+        accessToken: tokens.accessToken,
+      );
       final results = <UrlIndexingResult>[];
       var inspectionQuota = state.remainingInspectionQuota;
       var indexingQuota = state.remainingIndexingQuota;
@@ -365,9 +364,11 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
       const batchSize = 5;
       const delayBetweenBatches = Duration(milliseconds: 1000);
 
-      for (int batchStart = 0;
-          batchStart < allUrls.length;
-          batchStart += batchSize) {
+      for (
+        int batchStart = 0;
+        batchStart < allUrls.length;
+        batchStart += batchSize
+      ) {
         if (_isCancelled) break;
 
         final batchEnd = (batchStart + batchSize).clamp(0, allUrls.length);
@@ -375,7 +376,8 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
 
         state = state.copyWith(
           currentIndex: batchStart + 1,
-          statusMessage: '처리 중... (${batchStart + 1}-$batchEnd/${allUrls.length})',
+          statusMessage:
+              '처리 중... (${batchStart + 1}-$batchEnd/${allUrls.length})',
         );
 
         // 배치 내 URL 처리 (순차 처리 - API rate limit 준수)
@@ -398,15 +400,16 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
 
             if (inspectionResult.status == UrlIndexingStatus.indexed) {
               // 이미 색인됨 - 스킵
-              results.add(UrlIndexingResult(
-                url: url,
-                status: IndexingStatus.alreadyIndexed,
-              ));
+              results.add(
+                UrlIndexingResult(
+                  url: url,
+                  status: IndexingStatus.alreadyIndexed,
+                ),
+              );
               needsIndexing = false;
               indexedCount++;
             } else if (inspectionResult.status == UrlIndexingStatus.error &&
                 inspectionResult.errorMessage?.contains('429') == true) {
-              // Inspection Rate Limit - 색인 요청만 진행
               inspectionQuota = 0;
             }
           }
@@ -415,11 +418,13 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
           if (needsIndexing) {
             // 색인 할당량 확인
             if (indexingQuota <= 0) {
-              results.add(UrlIndexingResult(
-                url: url,
-                status: IndexingStatus.skipped,
-                errorMessage: '일일 할당량 초과',
-              ));
+              results.add(
+                UrlIndexingResult(
+                  url: url,
+                  status: IndexingStatus.skipped,
+                  errorMessage: '일일 할당량 초과',
+                ),
+              );
               continue;
             }
 
@@ -428,27 +433,30 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
 
             if (apiResult.success) {
               await IndexingStorageService.markUrlAsIndexed(url);
-              results.add(UrlIndexingResult(
-                url: url,
-                status: IndexingStatus.success,
-              ));
+              results.add(
+                UrlIndexingResult(url: url, status: IndexingStatus.success),
+              );
               requestedCount++;
             } else {
               // 429 에러 시 스킵 처리하고 계속 진행
               if (apiResult.errorMessage?.contains('429') == true) {
-                results.add(UrlIndexingResult(
-                  url: url,
-                  status: IndexingStatus.skipped,
-                  errorMessage: 'API 요청 한도 초과',
-                ));
+                results.add(
+                  UrlIndexingResult(
+                    url: url,
+                    status: IndexingStatus.skipped,
+                    errorMessage: 'API 요청 한도 초과',
+                  ),
+                );
                 await IndexingStorageService.incrementTodayCount();
               } else {
                 await IndexingStorageService.incrementTodayCount();
-                results.add(UrlIndexingResult(
-                  url: url,
-                  status: IndexingStatus.failed,
-                  errorMessage: apiResult.errorMessage,
-                ));
+                results.add(
+                  UrlIndexingResult(
+                    url: url,
+                    status: IndexingStatus.failed,
+                    errorMessage: apiResult.errorMessage,
+                  ),
+                );
               }
             }
 
