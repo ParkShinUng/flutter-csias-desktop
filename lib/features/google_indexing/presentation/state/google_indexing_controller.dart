@@ -351,7 +351,7 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
         currentIndex: 0,
       );
 
-      final inspectionService = UrlInspectionService(
+      var inspectionService = UrlInspectionService(
         accessToken: tokens.accessToken,
       );
       final results = <UrlIndexingResult>[];
@@ -389,11 +389,53 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
 
           if (inspectionQuota > 0) {
             final siteUrl = UrlInspectionService.extractSiteUrl(url);
-            final inspectionResult = await inspectionService.inspectUrl(
+            var inspectionResult = await inspectionService.inspectUrl(
               url: url,
               siteUrl: siteUrl,
               useLiveTest: state.useLiveTest,
             );
+
+            // 토큰 만료 시 갱신 후 재시도
+            if (inspectionResult.status == UrlIndexingStatus.tokenExpired &&
+                tokens != null) {
+              state = state.copyWith(statusMessage: '토큰 갱신 중...');
+
+              final credentials =
+                  await IndexingStorageService.loadOAuthCredentials();
+              if (credentials != null) {
+                _oauthService = GoogleOAuthService(
+                  clientId: credentials.clientId,
+                  clientSecret: credentials.clientSecret,
+                );
+
+                final refreshResult = await _oauthService!.refreshAccessToken(
+                  tokens.refreshToken,
+                );
+
+                if (refreshResult.success) {
+                  tokens = OAuthTokens(
+                    accessToken: refreshResult.accessToken!,
+                    refreshToken: refreshResult.refreshToken!,
+                    expiresAt: refreshResult.expiresAt!,
+                  );
+                  await IndexingStorageService.saveOAuthTokens(tokens);
+
+                  // 새 토큰으로 서비스 재생성
+                  inspectionService.dispose();
+                  inspectionService = UrlInspectionService(
+                    accessToken: tokens.accessToken,
+                  );
+
+                  // 재시도
+                  state = state.copyWith(statusMessage: '색인 상태 확인 중...');
+                  inspectionResult = await inspectionService.inspectUrl(
+                    url: url,
+                    siteUrl: siteUrl,
+                    useLiveTest: state.useLiveTest,
+                  );
+                }
+              }
+            }
 
             await IndexingStorageService.incrementInspectionCount();
             inspectionQuota--;

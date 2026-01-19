@@ -8,6 +8,7 @@ enum UrlIndexingStatus {
   notIndexed, // 색인 안됨
   unknown, // 알 수 없음
   error, // 오류
+  tokenExpired, // 토큰 만료 (401)
 }
 
 /// URL Inspection 결과
@@ -60,6 +61,15 @@ class UrlInspectionResult {
         url: url,
         status: UrlIndexingStatus.error,
         errorMessage: errorMessage,
+      );
+
+  factory UrlInspectionResult.tokenExpired({
+    required String url,
+  }) =>
+      UrlInspectionResult(
+        url: url,
+        status: UrlIndexingStatus.tokenExpired,
+        errorMessage: '토큰이 만료되었습니다. 갱신이 필요합니다.',
       );
 }
 
@@ -114,6 +124,9 @@ class UrlInspectionService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return _parseInspectionResult(url, data);
+      } else if (response.statusCode == 401) {
+        // 토큰 만료 - 갱신 필요
+        return UrlInspectionResult.tokenExpired(url: url);
       } else if (response.statusCode == 403) {
         return UrlInspectionResult.error(
           url: url,
@@ -164,24 +177,35 @@ class UrlInspectionService {
       final coverageState = indexStatusResult['coverageState'] as String?;
       final lastCrawlTime = indexStatusResult['lastCrawlTime'] as String?;
 
-      // verdict 값에 따라 색인 상태 결정
-      // PASS: 색인됨
-      // PARTIAL: 부분적으로 색인됨 (색인된 것으로 취급)
-      // FAIL: 색인 안됨
-      // NEUTRAL: 판단 불가
-      if (verdict == 'PASS' || verdict == 'PARTIAL') {
+      // 색인 상태 결정:
+      // 1. verdict가 PASS/PARTIAL이면 색인됨
+      // 2. coverageState에 "indexed"가 포함되면 색인됨 (예: "Submitted and indexed")
+      // 3. verdict가 FAIL이면 색인 안됨
+      // 4. coverageState에 "not indexed" 또는 "unknown"이 포함되면 색인 안됨
+      // 5. 그 외는 판단 불가
+      final isIndexedByVerdict = verdict == 'PASS' || verdict == 'PARTIAL';
+      final coverageLower = coverageState?.toLowerCase() ?? '';
+      final isIndexedByCoverage =
+          coverageLower.contains('indexed') &&
+          !coverageLower.contains('not indexed');
+      final isNotIndexed =
+          verdict == 'FAIL' ||
+          coverageLower.contains('not indexed') ||
+          coverageLower.contains('unknown');
+
+      if (isIndexedByVerdict || isIndexedByCoverage) {
         return UrlInspectionResult.indexed(
           url: url,
           coverageState: coverageState,
           lastCrawlTime: lastCrawlTime,
         );
-      } else if (verdict == 'FAIL') {
+      } else if (isNotIndexed) {
         return UrlInspectionResult.notIndexed(
           url: url,
           coverageState: coverageState,
         );
       } else {
-        // NEUTRAL 또는 기타
+        // 그 외 판단 불가
         return UrlInspectionResult(
           url: url,
           status: UrlIndexingStatus.unknown,
