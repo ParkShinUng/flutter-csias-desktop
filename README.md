@@ -14,8 +14,7 @@
 
 ### Google 색인 관리
 - **Sitemap 기반 URL 추출**: 블로그 sitemap에서 URL 자동 수집
-- **URL Inspection API**: OAuth 2.0 인증으로 색인 상태 확인
-- **Live URL Test**: 실시간 크롤링으로 현재 색인 상태 검사
+- **URL Inspection API**: OAuth 2.0 인증으로 색인 상태 확인 (이미 색인된 URL은 요청 스킵)
 - **Indexing API**: 서비스 계정으로 색인 요청 자동화
 - **모바일 URL 필터링**: `/m/` 경로 URL 자동 제외
 - **일일 할당량 관리**: API 사용량 추적 및 표시

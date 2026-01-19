@@ -392,7 +392,6 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
             var inspectionResult = await inspectionService.inspectUrl(
               url: url,
               siteUrl: siteUrl,
-              useLiveTest: state.useLiveTest,
             );
 
             // 토큰 만료 시 갱신 후 재시도
@@ -431,7 +430,6 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
                   inspectionResult = await inspectionService.inspectUrl(
                     url: url,
                     siteUrl: siteUrl,
-                    useLiveTest: state.useLiveTest,
                   );
                 }
               }
