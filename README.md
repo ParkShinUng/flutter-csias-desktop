@@ -35,11 +35,16 @@
 ```
 
 **자동으로 수행되는 작업:**
-1. 필요한 도구 설치 (Homebrew, Git, Flutter, Node.js)
+1. 필요한 도구 설치 (Xcode CLI Tools, Homebrew, Git, Flutter, Node.js, CocoaPods)
 2. 소스코드 다운로드 → `~/Desktop/csias_desktop`
 3. 실행 환경 구축 (Node.js 바이너리, npm 모듈)
 4. Release 빌드 생성
 5. 실행 가능한 앱을 Desktop에 복사 → `~/Desktop/csias_desktop.app`
+
+**주의사항:**
+- 처음 설치 시 **30분 이상** 소요될 수 있습니다
+- Xcode Command Line Tools 설치 팝업이 나타나면 '설치'를 클릭해주세요
+- Google Chrome이 설치되어 있어야 앱이 정상 동작합니다
 
 ### 앱 실행
 
