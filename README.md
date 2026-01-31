@@ -1,5 +1,7 @@
 # CSIAS Desktop
 
+[![Test Install Script](https://github.com/ParkShinUng/flutter-csias-desktop/actions/workflows/test-install.yml/badge.svg)](https://github.com/ParkShinUng/flutter-csias-desktop/actions/workflows/test-install.yml)
+
 **Chainshift Integrated Automation System** - Tistory 블로그 포스팅 자동화 및 Google 색인 관리 데스크탑 애플리케이션
 
 ## 주요 기능
@@ -22,48 +24,69 @@
 ## 시스템 요구사항
 
 - macOS 10.15 이상
-- Google Chrome 브라우저 설치 필요
+- 인터넷 연결
 
-## 설치 방법
+## 새로운 사용자 설치 가이드
 
-### 원클릭 설치 및 빌드 (권장)
+### Step 1: 원클릭 설치 및 빌드
 
-터미널에서 아래 명령어를 실행하면 모든 것이 자동으로 설치되고 앱이 빌드됩니다:
+터미널을 열고 아래 명령어를 실행합니다:
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/ParkShinUng/flutter-csias-desktop/master/scripts/install_and_build.sh)"
 ```
 
+**자동으로 설치되는 도구:**
+| 도구 | 설명 |
+|------|------|
+| Xcode Command Line Tools | macOS 개발 도구 |
+| Homebrew | 패키지 관리자 |
+| Git | 버전 관리 |
+| Flutter SDK | 앱 빌드 프레임워크 |
+| Node.js | JavaScript 런타임 |
+| CocoaPods | iOS/macOS 의존성 관리 |
+
 **자동으로 수행되는 작업:**
-1. 필요한 도구 설치 (Xcode CLI Tools, Homebrew, Git, Flutter, Node.js, CocoaPods)
-2. 소스코드 다운로드 → `~/Desktop/csias_desktop`
-3. 실행 환경 구축 (Node.js 바이너리, npm 모듈)
-4. Release 빌드 생성
-5. 실행 가능한 앱을 Desktop에 복사 → `~/Desktop/csias_desktop.app`
+1. 소스코드 다운로드 → `~/Desktop/csias_desktop/`
+2. Flutter 패키지 설치
+3. Node.js 바이너리 다운로드
+4. npm 모듈 설치
+5. Release 빌드 생성
+6. 앱을 Desktop에 복사 → `~/Desktop/csias_desktop.app`
 
-**주의사항:**
-- 처음 설치 시 **30분 이상** 소요될 수 있습니다
-- Xcode Command Line Tools 설치 팝업이 나타나면 '설치'를 클릭해주세요
-- Google Chrome이 설치되어 있어야 앱이 정상 동작합니다
+> **참고**: 처음 설치 시 약 30분 소요됩니다.
 
-### 앱 실행
+### Step 2: Google Chrome 설치
 
-설치 완료 후 Desktop에 있는 `csias_desktop.app`을 더블클릭하여 실행합니다.
+앱 실행 전 필수로 설치해야 합니다:
+- https://www.google.com/chrome/ 에서 다운로드 및 설치
 
-또는 터미널에서:
+### Step 3: 앱 실행
+
+Desktop에서 `csias_desktop.app`을 더블클릭하거나 터미널에서:
+
 ```bash
 open ~/Desktop/csias_desktop.app
 ```
 
-### 업데이트
+### Step 4: Google API 설정 (색인 기능 사용 시)
 
-최신 버전으로 업데이트하려면 `install_and_build.sh`를 다시 실행합니다:
+색인 기능을 사용하려면 아래 파일들을 지정된 경로에 복사합니다:
+
+| 파일 | 경로 | 용도 |
+|------|------|------|
+| 서비스 계정 키 | `~/Library/Application Support/csias_desktop/data/google_service_account.json` | Indexing API |
+| OAuth 자격증명 | `~/Library/Application Support/csias_desktop/data/google_oauth_credentials.json` | URL Inspection API |
+
+## 업데이트 방법
+
+동일한 명령어를 다시 실행합니다:
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/ParkShinUng/flutter-csias-desktop/master/scripts/install_and_build.sh)"
 ```
 
-### 개발자 모드 실행 (디버그)
+## 개발자 모드 실행
 
 개발 중 핫 리로드가 필요한 경우:
 
@@ -180,6 +203,9 @@ csias_desktop/
 ├── scripts/
 │   ├── install_and_build.sh    # 원클릭 설치 및 빌드
 │   └── run.sh                  # 개발용 실행 스크립트
+├── .github/
+│   └── workflows/
+│       └── test-install.yml    # 설치 스크립트 자동 테스트
 └── macos/                      # macOS 네이티브 설정
 ```
 
@@ -189,7 +215,7 @@ csias_desktop/
 
 원클릭 설치 및 빌드 스크립트입니다. 다음 작업을 자동으로 수행합니다:
 
-1. **필수 도구 설치**: Homebrew, Git, Flutter, Node.js
+1. **필수 도구 설치**: Xcode CLI Tools, Homebrew, Git, Flutter, Node.js, CocoaPods
 2. **소스코드 다운로드**: GitHub에서 클론
 3. **환경 구축**: Flutter 패키지, Node.js 바이너리, npm 모듈 설치
 4. **Release 빌드**: Flutter macOS 앱 빌드
@@ -212,6 +238,16 @@ csias_desktop/
 ./scripts/run.sh release  # 릴리즈 모드 (flutter build + open)
 ```
 
+## CI/CD
+
+GitHub Actions를 통해 설치 스크립트가 새로운 macOS 환경에서 정상 동작하는지 자동으로 테스트합니다.
+
+- **워크플로우**: `.github/workflows/test-install.yml`
+- **트리거**: `install_and_build.sh` 변경 시 자동 실행
+- **테스트 내용**: 소스코드 다운로드, 환경 구축, 앱 빌드, 코드 서명
+
+[![Test Install Script](https://github.com/ParkShinUng/flutter-csias-desktop/actions/workflows/test-install.yml/badge.svg)](https://github.com/ParkShinUng/flutter-csias-desktop/actions/workflows/test-install.yml)
+
 ## 기술 스택
 
 - **Frontend**: Flutter (Dart)
@@ -220,6 +256,7 @@ csias_desktop/
 - **IPC**: JSON-line 프로토콜 (stdin/stdout)
 - **Google APIs**: Indexing API, URL Inspection API
 - **Authentication**: OAuth 2.0, Service Account
+- **CI/CD**: GitHub Actions
 
 ## API 할당량
 
