@@ -129,6 +129,17 @@ else
     fi
 fi
 
+# Xcode 라이선스 동의 확인
+if ! sudo xcodebuild -license check &> /dev/null; then
+    print_warning "Xcode 라이선스 동의가 필요합니다..."
+    sudo xcodebuild -license accept || {
+        print_error "Xcode 라이선스 동의에 실패했습니다."
+        print_error "수동으로 실행해주세요: sudo xcodebuild -license accept"
+        exit 1
+    }
+    print_step "Xcode 라이선스 동의 완료"
+fi
+
 # 2. Homebrew 설치 확인
 print_header "Phase 1: 필수 도구 설치 (2/6 - Homebrew)"
 
@@ -196,6 +207,10 @@ else
     fi
 fi
 
+# Flutter macOS 데스크톱 활성화
+print_warning "Flutter macOS 데스크톱 활성화 중..."
+flutter config --enable-macos-desktop
+
 # Flutter precache (macOS 관련 아티팩트 미리 다운로드)
 print_warning "Flutter macOS 빌드 준비 중..."
 flutter precache --macos || true
@@ -245,21 +260,40 @@ print_header "Phase 2: 소스코드 다운로드"
 
 if [ -d "$INSTALL_DIR" ]; then
     print_warning "기존 설치 폴더가 존재합니다: $INSTALL_DIR"
-    read -p "삭제하고 새로 설치하시겠습니까? (y/n): " -n 1 -r
     echo ""
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        rm -rf "$INSTALL_DIR"
-    else
-        print_error "설치가 취소되었습니다."
-        exit 1
-    fi
+    echo "  1) 업데이트 - 기존 소스를 최신 버전으로 업데이트 (권장)"
+    echo "  2) 새로 설치 - 기존 폴더 삭제 후 새로 다운로드"
+    echo "  3) 취소"
+    echo ""
+    read -p "선택하세요 (1/2/3): " -n 1 -r
+    echo ""
+
+    case $REPLY in
+        1)
+            print_warning "기존 소스를 업데이트합니다..."
+            cd "$INSTALL_DIR"
+            git fetch origin
+            git reset --hard origin/master
+            print_step "소스코드 업데이트 완료"
+            ;;
+        2)
+            print_warning "기존 폴더를 삭제하고 새로 설치합니다..."
+            rm -rf "$INSTALL_DIR"
+            git clone "$REPO_URL" "$INSTALL_DIR"
+            print_step "소스코드 다운로드 완료"
+            cd "$INSTALL_DIR"
+            ;;
+        *)
+            print_error "설치가 취소되었습니다."
+            exit 0
+            ;;
+    esac
+else
+    print_warning "저장소를 클론합니다..."
+    git clone "$REPO_URL" "$INSTALL_DIR"
+    print_step "소스코드 다운로드 완료"
+    cd "$INSTALL_DIR"
 fi
-
-print_warning "저장소를 클론합니다..."
-git clone "$REPO_URL" "$INSTALL_DIR"
-print_step "소스코드 다운로드 완료"
-
-cd "$INSTALL_DIR"
 
 #===============================================================================
 # Phase 3: 환경 구축
@@ -341,6 +375,17 @@ print_header "Phase 4: Release 빌드"
 cd "$INSTALL_DIR"
 
 BUILD_DIR="$INSTALL_DIR/build/macos/Build/Products/Release"
+
+# CocoaPods 의존성 설치
+print_warning "CocoaPods 의존성 설치 중..."
+cd "$INSTALL_DIR/macos"
+pod install --repo-update || {
+    print_warning "CocoaPods 캐시 문제 발생, 정리 후 재시도..."
+    pod cache clean --all
+    pod install --repo-update
+}
+print_step "CocoaPods 의존성 설치 완료"
+cd "$INSTALL_DIR"
 
 print_warning "Flutter macOS release 빌드 중... (시간이 걸릴 수 있습니다)"
 flutter build macos --release

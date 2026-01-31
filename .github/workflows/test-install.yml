@@ -54,10 +54,13 @@ jobs:
 
           # 대화형 프롬프트 제거
           sed -i '' 's/read -p "계속하시겠습니까? (y\/n): " -n 1 -r/REPLY="y"/g' /tmp/install.sh
-          sed -i '' 's/read -p "삭제하고 새로 설치하시겠습니까? (y\/n): " -n 1 -r/REPLY="y"/g' /tmp/install.sh
+          sed -i '' 's/read -p "선택하세요 (1\/2\/3): " -n 1 -r/REPLY="2"/g' /tmp/install.sh
           sed -i '' 's/read -p "Xcode Command Line Tools 설치가 완료되면 Enter를 눌러주세요..."/echo "Xcode CLI 확인 중..."/g' /tmp/install.sh
           sed -i '' 's/read -p "Chrome 설치 후 Enter를 누르거나, 나중에 설치하려면 그냥 Enter를 누르세요..."/echo "Chrome 확인 스킵"/g' /tmp/install.sh
           sed -i '' 's/read -p "지금 CSIAS Desktop을 실행하시겠습니까? (y\/n): " -n 1 -r/REPLY="n"/g' /tmp/install.sh
+
+          # Xcode 라이선스 체크 스킵 (CI 환경에서는 이미 동의됨)
+          sed -i '' 's/if ! sudo xcodebuild -license check/if false/g' /tmp/install.sh
 
           chmod +x /tmp/install.sh
           /bin/bash /tmp/install.sh
