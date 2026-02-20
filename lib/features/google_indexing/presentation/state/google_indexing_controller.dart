@@ -386,7 +386,7 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
       var indexingQuota = state.remainingIndexingQuota;
       var indexedCount = 0;
 
-      const inspectionBatchSize = 5;
+      const inspectionBatchSize = 10;
       const delayBetweenBatches = Duration(milliseconds: 1000);
 
       for (
