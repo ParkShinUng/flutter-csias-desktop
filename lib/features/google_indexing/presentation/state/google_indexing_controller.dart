@@ -406,90 +406,126 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
               '색인 상태 확인 중... (${batchStart + 1}-$batchEnd/${urlsToProcess.length})',
         );
 
-        for (final url in batch) {
-          if (_isCancelled) break;
+        // 할당량 내 URL과 초과 URL 분리
+        final quotaCount = inspectionQuota.clamp(0, batch.length);
+        final urlsToInspect = batch.sublist(0, quotaCount);
+        final urlsOverQuota = batch.sublist(quotaCount);
 
-          if (inspectionQuota > 0) {
-            final siteUrl = UrlInspectionService.extractSiteUrl(url);
-            var inspectionResult = await inspectionService.inspectUrl(
-              url: url,
-              siteUrl: siteUrl,
-            );
+        if (urlsToInspect.isNotEmpty) {
+          // 동시 Inspection 요청
+          var inspectionResults = await Future.wait(
+            urlsToInspect.map((url) async {
+              final siteUrl = UrlInspectionService.extractSiteUrl(url);
+              final result = await inspectionService.inspectUrl(
+                url: url,
+                siteUrl: siteUrl,
+              );
+              return MapEntry(url, result);
+            }),
+          );
 
-            // 토큰 만료 시 갱신 후 재시도
-            if (inspectionResult.status == UrlIndexingStatus.tokenExpired &&
-                tokens != null) {
-              state = state.copyWith(statusMessage: '토큰 갱신 중...');
+          // 토큰 만료 확인 — 갱신 후 만료된 요청만 재시도
+          final hasTokenExpiry = inspectionResults
+              .any((e) => e.value.status == UrlIndexingStatus.tokenExpired);
 
-              final credentials =
-                  await IndexingStorageService.loadOAuthCredentials();
-              if (credentials != null) {
-                _oauthService = GoogleOAuthService(
-                  clientId: credentials.clientId,
-                  clientSecret: credentials.clientSecret,
+          if (hasTokenExpiry && tokens != null) {
+            state = state.copyWith(statusMessage: '토큰 갱신 중...');
+
+            final credentials =
+                await IndexingStorageService.loadOAuthCredentials();
+            if (credentials != null) {
+              _oauthService = GoogleOAuthService(
+                clientId: credentials.clientId,
+                clientSecret: credentials.clientSecret,
+              );
+
+              final refreshResult = await _oauthService!.refreshAccessToken(
+                tokens.refreshToken,
+              );
+
+              if (refreshResult.success) {
+                tokens = OAuthTokens(
+                  accessToken: refreshResult.accessToken!,
+                  refreshToken: refreshResult.refreshToken!,
+                  expiresAt: refreshResult.expiresAt!,
+                );
+                await IndexingStorageService.saveOAuthTokens(tokens);
+
+                inspectionService.dispose();
+                inspectionService = UrlInspectionService(
+                  accessToken: tokens.accessToken,
                 );
 
-                final refreshResult = await _oauthService!.refreshAccessToken(
-                  tokens.refreshToken,
+                // 만료된 요청만 동시 재시도
+                final expiredUrls = inspectionResults
+                    .where(
+                      (e) =>
+                          e.value.status == UrlIndexingStatus.tokenExpired,
+                    )
+                    .map((e) => e.key)
+                    .toList();
+
+                final retryResults = await Future.wait(
+                  expiredUrls.map((url) async {
+                    final siteUrl =
+                        UrlInspectionService.extractSiteUrl(url);
+                    final result = await inspectionService.inspectUrl(
+                      url: url,
+                      siteUrl: siteUrl,
+                    );
+                    return MapEntry(url, result);
+                  }),
                 );
 
-                if (refreshResult.success) {
-                  tokens = OAuthTokens(
-                    accessToken: refreshResult.accessToken!,
-                    refreshToken: refreshResult.refreshToken!,
-                    expiresAt: refreshResult.expiresAt!,
-                  );
-                  await IndexingStorageService.saveOAuthTokens(tokens);
-
-                  inspectionService.dispose();
-                  inspectionService = UrlInspectionService(
-                    accessToken: tokens.accessToken,
-                  );
-
-                  state = state.copyWith(statusMessage: '색인 상태 확인 중...');
-                  inspectionResult = await inspectionService.inspectUrl(
-                    url: url,
-                    siteUrl: siteUrl,
-                  );
-                }
+                final retryMap = Map.fromEntries(retryResults);
+                inspectionResults = inspectionResults
+                    .map(
+                      (e) => retryMap.containsKey(e.key)
+                          ? MapEntry(e.key, retryMap[e.key]!)
+                          : e,
+                    )
+                    .toList();
               }
             }
+          }
 
+          // 결과 처리
+          for (final entry in inspectionResults) {
             await IndexingStorageService.incrementInspectionCount();
             inspectionQuota--;
 
-            if (inspectionResult.status == UrlIndexingStatus.indexed) {
+            if (entry.value.status == UrlIndexingStatus.indexed) {
               results.add(UrlIndexingResult(
-                url: url,
+                url: entry.key,
                 status: IndexingStatus.alreadyIndexed,
               ));
               indexedCount++;
-              await IndexingStorageService.markUrlAsVerified(url);
-            } else if (inspectionResult.status == UrlIndexingStatus.error &&
-                inspectionResult.errorMessage?.contains('429') == true) {
+              await IndexingStorageService.markUrlAsVerified(entry.key);
+            } else if (entry.value.status == UrlIndexingStatus.error &&
+                entry.value.errorMessage?.contains('429') == true) {
               inspectionQuota = 0;
-              // 현재 URL은 확인 불가 — 색인 요청 대상에 포함
-              urlsToIndex.add(url);
+              urlsToIndex.add(entry.key);
               results.add(UrlIndexingResult(
-                url: url,
+                url: entry.key,
                 status: IndexingStatus.pending,
               ));
             } else {
-              // 미색인 또는 알 수 없음 — 색인 요청 대상
-              urlsToIndex.add(url);
+              urlsToIndex.add(entry.key);
               results.add(UrlIndexingResult(
-                url: url,
+                url: entry.key,
                 status: IndexingStatus.pending,
               ));
             }
-          } else {
-            // Inspection 할당량 소진
-            results.add(UrlIndexingResult(
-              url: url,
-              status: IndexingStatus.skipped,
-              errorMessage: 'Inspection 할당량 소진',
-            ));
           }
+        }
+
+        // 할당량 초과 URL 처리
+        for (final url in urlsOverQuota) {
+          results.add(UrlIndexingResult(
+            url: url,
+            status: IndexingStatus.skipped,
+            errorMessage: 'Inspection 할당량 소진',
+          ));
         }
 
         state = state.copyWith(
