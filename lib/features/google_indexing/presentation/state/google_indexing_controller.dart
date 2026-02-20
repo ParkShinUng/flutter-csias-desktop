@@ -573,7 +573,7 @@ class GoogleIndexingController extends Notifier<GoogleIndexingState> {
             final idx = results.indexWhere((r) => r.url == url);
 
             if (apiResult.success) {
-              await IndexingStorageService.markUrlAsIndexed(url);
+              await IndexingStorageService.incrementTodayCount();
               if (idx >= 0) {
                 results[idx] = UrlIndexingResult(
                   url: url,
