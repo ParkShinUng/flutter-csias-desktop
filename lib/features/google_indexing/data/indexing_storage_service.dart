@@ -160,6 +160,16 @@ class IndexingStorageService {
     _isDirty = true;
   }
 
+  /// URL을 색인 확인됨으로 기록 (Inspection API 확인, 일일 요청 횟수 미증가)
+  static Future<void> markUrlAsVerified(String url) async {
+    final json = await _loadCached();
+    final urls = (json['urls'] as Map<String, dynamic>?) ?? {};
+    urls[url] = _todayKey;
+    json['urls'] = urls;
+    _cache = json;
+    _isDirty = true;
+  }
+
   /// 오늘 요청 횟수 증가 (캐시 사용, 즉시 저장 안 함)
   static Future<void> incrementTodayCount() async {
     final json = await _loadCached();
