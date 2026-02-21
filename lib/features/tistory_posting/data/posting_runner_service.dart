@@ -96,11 +96,8 @@ class PostingRunnerService {
     }
 
     try {
-      final hasStorageState =
-          account.storageState != null && account.storageState!.isNotEmpty;
-
       AppLogger.info(
-        '포스팅 시작: ${files.length}개 파일, headless=$hasStorageState',
+        '포스팅 시작: ${files.length}개 파일, headless=false',
         tag: 'Runner',
       );
 
@@ -108,7 +105,7 @@ class PostingRunnerService {
         account: account,
         files: files,
         storageStatePath: storageStatePath,
-        headless: hasStorageState,
+        headless: false,
         chromePath: chromePath,
       );
 
