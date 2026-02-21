@@ -43,6 +43,18 @@ class PostingMessageEvent extends PostingEvent {
 
 class PostingLoginAuthEvent extends PostingEvent {}
 
+class PostingFileResultEvent extends PostingEvent {
+  final String fileName;
+  final bool success;
+  final String? error;
+
+  PostingFileResultEvent({
+    required this.fileName,
+    required this.success,
+    this.error,
+  });
+}
+
 class PostingErrorEvent extends PostingEvent {
   final String message;
 
@@ -266,6 +278,13 @@ class PostingRunnerService {
             return PostingMessageEvent('포스팅 시작...');
           }
           return null;
+
+        case 'post_result':
+          return PostingFileResultEvent(
+            fileName: json['file'] as String? ?? '',
+            success: json['success'] as bool? ?? false,
+            error: json['error'] as String?,
+          );
 
         case 'error':
           return PostingErrorEvent(json['message'] as String? ?? '알 수 없는 오류');

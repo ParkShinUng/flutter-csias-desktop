@@ -163,13 +163,17 @@ async function routeTistoryPost(payload) {
     const headers = await createPostHeaders(page, account.blogName);
     emit({ event: "log", message: "Extracted headers" });
 
+    let successCount = 0;
+    let failCount = 0;
+
     for (let i = 0; i < posts.length; i++) {
       const post = posts[i];
+      const fileName = path.basename(post.htmlFilePath);
       emit({
         event: "progress",
         current: i + 1,
         total: posts.length,
-        file: path.basename(post.htmlFilePath),
+        file: fileName,
       });
 
       const html = fs.readFileSync(post.htmlFilePath, "utf8");
@@ -183,10 +187,29 @@ async function routeTistoryPost(payload) {
         extraHeaders: headers,
       });
 
+      const status = result.status();
+      if (status === 200) {
+        successCount++;
+        emit({ event: "post_result", file: fileName, success: true });
+      } else {
+        failCount++;
+        let errorMsg = `HTTP ${status}`;
+        try {
+          const body = await result.json();
+          errorMsg = body?.error?.message || body?.message || errorMsg;
+        } catch (_) {}
+        emit({ event: "post_result", file: fileName, success: false, error: errorMsg });
+      }
+
       await delay(100);
     }
 
-    emit({ event: "done", message: "All posts processed." });
+    if (failCount > 0) {
+      emit({ event: "done", message: `${successCount}/${posts.length} 성공, ${failCount}개 실패` });
+      if (successCount === 0) process.exitCode = 1;
+    } else {
+      emit({ event: "done", message: "All posts processed." });
+    }
   } finally {
     // 브라우저 종료 전 잠시 대기 (macOS Dock 정리용)
     await delay(500);

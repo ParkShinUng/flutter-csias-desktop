@@ -306,6 +306,10 @@ class TistoryPostingController extends Notifier<TistoryPostingState> {
         );
       case PostingMessageEvent():
         state = state.copyWith(progressMessage: event.message);
+      case PostingFileResultEvent():
+        if (!event.success) {
+          showError('포스팅 실패: ${event.fileName}', detail: event.error);
+        }
       case PostingLoginAuthEvent():
         showInfo('Kakao 로그인 인증 요청이 전송되었습니다.\n(Check Mobile Kakao Login)');
       case PostingErrorEvent():
